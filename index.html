@@ -405,6 +405,16 @@ function avgRange(high,low,length){
   return sum / h.length;
 }
 
+function avgCloseDelta(close,length){
+  let c = close.slice(-(length + 1));
+  if(c.length < 2) return 0;
+  let sum = 0;
+  for(let i=1;i<c.length;i++){
+    sum += Math.abs(c[i] - c[i-1]);
+  }
+  return sum / (c.length - 1);
+}
+
 function timeToMinutes(hhmm){
   let parts = hhmm.split(":").map(Number);
   return parts[0] * 60 + parts[1];
@@ -619,7 +629,11 @@ function analyze(close,high,low,open){
 
     let candleSize = Math.abs(close.at(-1) - open.at(-1));
     let spikeOk    = candleSize <= mode.maxCandleSize;
-    let sidewaysOk = avgCandle > mode.minAvgCandle;
+    let closeDeltaAvg = avgCloseDelta(close, 12);
+    let recentRange = Math.max(...close.slice(-12)) - Math.min(...close.slice(-12));
+    // Synthetic candle cenderung tanpa wick; gabungkan beberapa metrik agar lebih representatif.
+    let effectiveVolatility = Math.max(avgCandle, closeDeltaAvg * 1.2, recentRange / 6);
+    let sidewaysOk = effectiveVolatility > mode.minAvgCandle;
     let nearEmaForBuy = last <= (emaFast + mode.pullbackTolerance);
     let nearEmaForSell = last >= (emaFast - mode.pullbackTolerance);
     let nearEmaPullback = trend === "bullish" ? nearEmaForBuy : nearEmaForSell;
@@ -629,6 +643,8 @@ function analyze(close,high,low,open){
     let emaGapOk = trendStrength <= avgCandleRef * mode.maxEmaGapFactor;
     // Jika harga sudah pullback dekat EMA20, izinkan entry walau EMA20-EMA50 masih renggang.
     let allowByPullback = nearEmaPullback;
+    // Jika trend cukup kuat dan harga sudah di area pullback, jangan terlalu ketat memblokir sideways.
+    let allowSidewaysByTrend = nearEmaPullback && trendStrength >= Math.max(0.8, avgCandleRef * 0.35);
 
     if(!spikeOk){
       reason = "Spike candle >" + mode.maxCandleSize + " poin, skip entry";
@@ -636,7 +652,7 @@ function analyze(close,high,low,open){
     } else if(!emaGapOk && !allowByPullback){
       reason = "EMA gap terlalu jauh, market overextended";
       marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam ke area EMA20 atau konsolidasi.";
-    } else if(!sidewaysOk){
+    } else if(!sidewaysOk && !allowSidewaysByTrend){
       reason = "Market sideways, volatilitas terlalu kecil";
       marketComment = "Volatilitas terlalu kecil, market sedang sideways. Tunggu sesi aktif (London/New York).";
     } else if(trend === "bullish" && nearEmaForBuy && close.at(-1) > open.at(-1)){
