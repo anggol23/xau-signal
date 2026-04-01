@@ -379,7 +379,7 @@ function getModeConfig(){
       rr: 1.5,             // TP = risk * 1.5 = 37.5 poin
       maxCandleSize: 130,  // Lebih longgar: tetap hindari spike ekstrem
       maxEmaGapFactor: 5,  // Lebih longgar: trend kuat tetap bisa dieksekusi
-      minAvgCandle: 0.5,   // Lebih longgar: tidak mudah dianggap sideways
+      minAvgCandle: 0.35,  // Lebih longgar: kurangi false "sideways" pada feed synthetic
       pullbackTolerance: 8 // Area pullback EMA20 diperlebar
     };
   }
@@ -643,8 +643,9 @@ function analyze(close,high,low,open){
     let closeDeltaAvg = avgCloseDelta(close, 12);
     let recentRange = Math.max(...close.slice(-12)) - Math.min(...close.slice(-12));
     // Synthetic candle cenderung tanpa wick; gabungkan beberapa metrik agar lebih representatif.
-    let effectiveVolatility = Math.max(avgCandle, closeDeltaAvg * 1.2, recentRange / 6);
-    let sidewaysOk = effectiveVolatility > mode.minAvgCandle;
+    let effectiveVolatility = Math.max(avgCandle, closeDeltaAvg * 1.5, recentRange / 4, candleSize * 0.9);
+    let sidewaysThreshold = allowAllTradingSessions ? mode.minAvgCandle * 0.6 : mode.minAvgCandle;
+    let sidewaysOk = effectiveVolatility > sidewaysThreshold;
     let nearEmaForBuy = last <= (emaFast + mode.pullbackTolerance);
     let nearEmaForSell = last >= (emaFast - mode.pullbackTolerance);
     let nearEmaPullback = trend === "bullish" ? nearEmaForBuy : nearEmaForSell;
@@ -667,7 +668,7 @@ function analyze(close,high,low,open){
       marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam ke area EMA20 atau konsolidasi.";
     } else if(!sidewaysOk && !allowSidewaysByTrend){
       reason = "Market sideways, volatilitas terlalu kecil";
-      marketComment = "Volatilitas terlalu kecil, market sedang sideways. " + getSessionGuidanceText();
+      marketComment = "Volatilitas kecil (" + fix(effectiveVolatility) + " < " + fix(sidewaysThreshold) + "). Market cenderung sideways. " + getSessionGuidanceText();
     } else if(trend === "bullish" && nearEmaForBuy && bullishConfirm){
       // BUY SCALP: harga pullback ke EMA20 + candle bullish konfirmasi
       entry = last;
