@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>XAUUSD SNIPER FINAL (ANTI MC)</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #162033;
+      --panel-border: #24324d;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --buy: #22c55e;
+      --sell: #ef4444;
+      --wait: #facc15;
+    }
+
+    * {box-sizing: border-box}
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 35%),
+        linear-gradient(180deg, #09101c, var(--bg));
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px 16px 28px;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      text-align: center;
+      font-size: clamp(26px, 3.2vw, 52px);
+      letter-spacing: 0.02em;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .box {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+    }
+
+    .signal-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chart-box {
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .chart-title {
+      margin: 0;
+      font-size: 20px;
+      text-align: left;
+    }
+
+    .chart-badge, #dataStatus {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #chart {
+      width: 100%;
+      height: 410px;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+
+    #dataStatus {
+      margin: 10px 2px 0;
+    }
+
+    .signal-title {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 22px;
+      text-align: left;
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .mode-btn {
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.72);
+      color: #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn:hover {
+      border-color: rgba(125, 211, 252, 0.5);
+      color: #e2e8f0;
+    }
+
+    .mode-btn.active {
+      background: linear-gradient(180deg, #1d4ed8, #1e40af);
+      border-color: #60a5fa;
+      color: #f8fafc;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+    }
+
+    #signal {
+      margin: 0 0 12px;
+      font-size: 44px;
+      font-weight: 700;
+      text-align: left;
+      letter-spacing: 0.01em;
+    }
+
+    .signal-grid {
+      display: grid;
+      gap: 7px;
+    }
+
+    .signal-grid p {
+      margin: 0;
+      min-height: 42px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      text-align: left;
+      display: flex;
+      align-items: center;
+    }
+
+    .signal-grid p.dim {
+      color: #94a3b8;
+      border-color: rgba(148, 163, 184, 0.09);
+    }
+
+    .comment-box {
+      margin-top: 6px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      text-align: left;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .comment-box h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      color: #cbd5e1;
+    }
+
+    .comment-box p {
+      margin: 0;
+      color: #dbeafe;
+      font-size: 14px;
+    }
+
+    .buy {color: var(--buy); font-weight: bold}
+    .sell {color: var(--sell); font-weight: bold}
+    .wait {color: var(--wait)}
+
+    @media (max-width: 860px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-box {
+        min-height: auto;
+      }
+
+      #chart {
+        height: 360px;
+      }
+
+      .signal-panel {
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <h1>💀 XAUUSD SNIPER</h1>
+
+  <div class="layout">
+    <div class="box chart-box">
+      <div class="chart-head">
+        <h2 class="chart-title">Realtime Chart</h2>
+        <span class="chart-badge" id="chartStatus">1 Minute Feed</span>
+      </div>
+      <div id="chart"></div>
+      <p id="dataStatus">Loading data...</p>
+    </div>
+
+    <div class="box signal-panel">
+      <h2 class="signal-title">SIGNAL</h2>
+      <div class="mode-switch">
+        <button type="button" id="modeNormal" class="mode-btn" onclick="setStrategyMode('NORMAL')">Mode Normal</button>
+        <button type="button" id="modeScalp" class="mode-btn" onclick="setStrategyMode('SCALPING')">Mode Scalping</button>
+      </div>
+      <p id="signal" class="wait">WAIT</p>
+      <div class="signal-grid">
+        <p id="source"></p>
+        <p id="modeInfo"></p>
+        <p id="sessionFilter"></p>
+        <p id="newsFilter"></p>
+        <p id="entry"></p>
+        <p id="tp"></p>
+        <p id="sl"></p>
+        <p id="lot"></p>
+        <p id="status"></p>
+        <p id="reason"></p>
+        <p id="manage"></p>
+      </div>
+      <div class="comment-box">
+        <h3>Komentar Kondisi Chart</h3>
+        <p id="marketComment">Menunggu data candle terbaru...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+
+<script>
+
+// ===== CONFIG =====
+let balance = 100;
+let riskPercent = 1;
+let fallbackPrices = [];
+let strategyMode = "SCALPING"; // Pilih: "NORMAL" atau "SCALPING"
+
+const tradingSessions = [
+  {name: "London", start: "14:00", end: "18:30"},
+  {name: "New York", start: "19:30", end: "00:30"}
+];
+
+const recurringHighImpactNews = [
+  {label: "US Data 19:30", days: [1,2,3,4,5], time: "19:30", beforeMin: 20, afterMin: 20},
+  {label: "US Data 21:00", days: [1,2,3,4,5], time: "21:00", beforeMin: 20, afterMin: 20}
+];
+
+const specialRecurringNews = [
+  // NFP biasanya rilis pada Jumat pertama tiap bulan, volatilitas sering lebih besar.
+  {label: "NFP (First Friday)", rule: "firstFriday", time: "19:30", beforeMin: 45, afterMin: 45}
+];
+
+const datedHighImpactNews = [
+  // Contoh format: {label: "NFP", date: "2026-04-03", time: "19:30", beforeMin: 45, afterMin: 45}
+];
+
+// ===== GLOBAL =====
+new TradingView.widget({
+  container_id: "chart",
+  symbol: "OANDA:XAUUSD",
+  interval: "1",
+  theme: "dark",
+  width: "100%",
+  height: 400,
+  locale: "id",
+  timezone: "Asia/Jakarta",
+  hide_top_toolbar: false,
+  hide_legend: false,
+  allow_symbol_change: false,
+  withdateranges: true
+});
+
+// ===== FORMAT =====
+function fix(v){
+  return (v !== null && v !== undefined)
+    ? v.toFixed(2)
+    : "-";
+}
+
+// ===== EMA =====
+function ema(arr,n){
+  let k=2/(n+1),res=[arr[0]];
+  for(let i=1;i<arr.length;i++){
+    res.push(arr[i]*k + res[i-1]*(1-k));
+  }
+  return res;
+}
+
+// ===== LOT =====
+function calcLot(slPoints){
+  let risk = balance * (riskPercent/100);
+  return (risk / slPoints).toFixed(2);
+}
+
+// ===== FALLBACK =====
+function buildSyntheticSeries(prices){
+  let close = prices.slice(-60);
+  let open = [];
+  let high = [];
+  let low = [];
+
+  for(let i=0;i<close.length;i++){
+    let prev = i === 0 ? close[i] : close[i-1];
+    let curr = close[i];
+    open.push(prev);
+    high.push(Math.max(prev,curr));
+    low.push(Math.min(prev,curr));
+  }
+
+  return {close,high,low,open};
+}
+
+function setSourceLabel(text){
+  document.getElementById("source").innerText = "Source: " + text;
+}
+
+function setMetric(id,label,value,dim){
+  let el = document.getElementById(id);
+  el.innerText = label + ": " + value;
+  el.className = dim ? "dim" : "";
+}
+
+function formatModeComment(text){
+  return "[" + strategyMode + "] " + text;
+}
+
+function renderModeButtons(){
+  let normalBtn = document.getElementById("modeNormal");
+  let scalpBtn = document.getElementById("modeScalp");
+  if(!normalBtn || !scalpBtn) return;
+
+  normalBtn.classList.toggle("active", strategyMode === "NORMAL");
+  scalpBtn.classList.toggle("active", strategyMode === "SCALPING");
+}
+
+function setStrategyMode(mode){
+  strategyMode = mode === "NORMAL" ? "NORMAL" : "SCALPING";
+  renderModeButtons();
+  load();
+}
+
+function getModeConfig(){
+  if(strategyMode === "SCALPING"){
+    return {
+      name: "SCALPING",
+      fastEma: 20,         // EMA20 sebagai zona pullback
+      slowEma: 50,         // EMA50 penentu trend utama
+      risk: 25,            // SL fixed 25 poin
+      rr: 1.5,             // TP = risk * 1.5 = 37.5 poin
+      maxCandleSize: 80,   // Filter spike: candle >80 poin = skip
+      maxEmaGapFactor: 3   // Filter EMA terlalu jauh: gap > avgCandle*3 = skip
+    };
+  }
+
+  return {
+    name: "NORMAL",
+    fastEma: 20,
+    slowEma: 50,
+    slBuffer: 20,
+    rr: 2,
+    minBodyFactor: 0.3,
+    minTrendFactor: 0.05
+  };
+}
+
+function avgRange(high,low,length){
+  let h = high.slice(-length);
+  let l = low.slice(-length);
+  if(h.length === 0 || l.length === 0) return 0;
+  let sum = 0;
+  for(let i=0;i<h.length;i++){
+    sum += Math.abs(h[i]-l[i]);
+  }
+  return sum / h.length;
+}
+
+function timeToMinutes(hhmm){
+  let parts = hhmm.split(":").map(Number);
+  return parts[0] * 60 + parts[1];
+}
+
+function inTimeRange(nowMin,startMin,endMin){
+  if(startMin <= endMin){
+    return nowMin >= startMin && nowMin <= endMin;
+  }
+  return nowMin >= startMin || nowMin <= endMin;
+}
+
+function getJakartaClock(){
+  let now = new Date();
+  let parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).formatToParts(now);
+
+  let map = {};
+  for(let p of parts){
+    map[p.type] = p.value;
+  }
+
+  let dayMap = {Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0};
+  let hour = Number(map.hour);
+  let minute = Number(map.minute);
+
+  return {
+    minutes: hour * 60 + minute,
+    weekday: dayMap[map.weekday] ?? 0,
+    day: Number(map.day),
+    date: `${map.year}-${map.month}-${map.day}`
+  };
+}
+
+function isFirstFriday(day,weekday){
+  return weekday === 5 && day >= 1 && day <= 7;
+}
+
+function getSessionFilterStatus(clock){
+  for(let s of tradingSessions){
+    let start = timeToMinutes(s.start);
+    let end = timeToMinutes(s.end);
+    if(inTimeRange(clock.minutes, start, end)){
+      return {allowed: true, label: `AKTIF (${s.name})`};
+    }
+  }
+  return {allowed: false, label: "OFF (di luar jam trading)"};
+}
+
+function getNewsFilterStatus(clock){
+  for(let n of recurringHighImpactNews){
+    if(!n.days.includes(clock.weekday)) continue;
+    let center = timeToMinutes(n.time);
+    let start = center - n.beforeMin;
+    let end = center + n.afterMin;
+    if(inTimeRange(clock.minutes, start, end)){
+      return {blocked: true, label: `BLOCK (${n.label})`};
+    }
+  }
+
+  for(let n of specialRecurringNews){
+    let isMatch = false;
+    if(n.rule === "firstFriday"){
+      isMatch = isFirstFriday(clock.day, clock.weekday);
+    }
+    if(!isMatch) continue;
+
+    let center = timeToMinutes(n.time);
+    let start = center - n.beforeMin;
+    let end = center + n.afterMin;
+    if(inTimeRange(clock.minutes, start, end)){
+      return {blocked: true, label: `BLOCK (${n.label})`};
+    }
+  }
+
+  for(let n of datedHighImpactNews){
+    if(n.date !== clock.date) continue;
+    let center = timeToMinutes(n.time);
+    let start = center - n.beforeMin;
+    let end = center + n.afterMin;
+    if(inTimeRange(clock.minutes, start, end)){
+      return {blocked: true, label: `BLOCK (${n.label})`};
+    }
+  }
+
+  return {blocked: false, label: "AMAN"};
+}
+
+// ===== FETCH =====
+async function load(){
+  try{
+    let res = await fetch("https://api.gold-api.com/price/XAU");
+    let data = await res.json();
+    if(!data.price) throw new Error("Harga XAU tidak tersedia");
+
+    if(fallbackPrices.length === 0){
+      // Seed data awal supaya engine tidak lama berada di status WAIT.
+      fallbackPrices = Array(20).fill(+data.price);
+    }
+
+    fallbackPrices.push(+data.price);
+    if(fallbackPrices.length > 120) fallbackPrices.shift();
+
+    document.getElementById("dataStatus").innerText =
+      "Realtime aktif (Gold API) | Update terakhir: " + new Date().toLocaleTimeString("id-ID");
+    setSourceLabel("Gold API (Synthetic Candle)");
+    document.getElementById("chartStatus").innerText = "1 Minute Feed | Gold API";
+
+    if(fallbackPrices.length < 6){
+      document.getElementById("marketComment").innerText =
+        formatModeComment("Mengumpulkan data candle... analisis akan aktif sebentar lagi.");
+      return;
+    }
+
+    let synthetic = buildSyntheticSeries(fallbackPrices);
+    analyze(synthetic.close, synthetic.high, synthetic.low, synthetic.open);
+
+  }catch(e){
+    console.log("ERROR FEED:", e);
+    document.getElementById("dataStatus").innerText = "Gagal update data realtime";
+    setSourceLabel("Offline / Error");
+    document.getElementById("chartStatus").innerText = "1 Minute Feed | Error";
+    document.getElementById("marketComment").innerText =
+      formatModeComment("Feed Gold API gagal. Cek internet lalu refresh halaman.");
+  }
+}
+
+// ===== ENGINE =====
+function analyze(close,high,low,open){
+
+  let clock = getJakartaClock();
+  let sessionStatus = getSessionFilterStatus(clock);
+  let newsStatus = getNewsFilterStatus(clock);
+  let mode = getModeConfig();
+
+  setMetric("modeInfo", "Mode", mode.name, false);
+  setMetric("sessionFilter", "Jam Trading", sessionStatus.label, !sessionStatus.allowed);
+  setMetric("newsFilter", "News Filter", newsStatus.label, newsStatus.blocked);
+
+  if(close.length < 6 || high.length < 6 || low.length < 6 || open.length < 6){
+    document.getElementById("signal").className="wait";
+    document.getElementById("signal").innerText="WAIT";
+    setMetric("entry","Entry","-", true);
+    setMetric("tp","TP","-", true);
+    setMetric("sl","SL","-", true);
+    setMetric("lot","Lot","-", true);
+    setMetric("status","Status","WAIT", true);
+    setMetric("reason","Alasan","Data belum cukup", true);
+    setMetric("manage","Manajemen","WAIT", true);
+    document.getElementById("marketComment").innerText=formatModeComment("Data awal sedang dibangun. Analisis akan aktif otomatis dalam beberapa detik.");
+    return;
+  }
+
+  let last = close.at(-1);
+  let avgCandle = avgRange(high,low,12);
+
+  // ===== TREND =====
+  let emaFast = ema(close,mode.fastEma).at(-1);
+  let emaSlow = ema(close,mode.slowEma).at(-1);
+  let trend = emaFast > emaSlow ? "bullish":"bearish";
+  let trendStrength = Math.abs(emaFast - emaSlow);
+
+  // ===== STRUCTURE =====
+  let recentHigh = Math.max(...high.slice(-10));
+  let recentLow  = Math.min(...low.slice(-10));
+
+  let prevHigh = Math.max(...high.slice(-6,-1));
+  let prevLow  = Math.min(...low.slice(-6,-1));
+
+  let bosUp   = last > prevHigh;
+  let bosDown = last < prevLow;
+
+  // ===== SWEEP =====
+  let sweepHigh = high.at(-1) > recentHigh;
+  let sweepLow  = low.at(-1) < recentLow;
+
+  // ===== REJECTION =====
+  let upperWick = high.at(-1) - Math.max(open.at(-1), close.at(-1));
+  let lowerWick = Math.min(open.at(-1), close.at(-1)) - low.at(-1);
+  let bodySize = Math.abs(close.at(-1) - open.at(-1));
+
+  let bearishReject = upperWick > lowerWick;
+  let bullishReject = lowerWick > upperWick;
+  let bullishMomentum = close.at(-1) > open.at(-1) && bodySize >= avgCandle * mode.minBodyFactor;
+  let bearishMomentum = close.at(-1) < open.at(-1) && bodySize >= avgCandle * mode.minBodyFactor;
+  let trendStrongEnough = trendStrength >= avgCandle * mode.minTrendFactor;
+
+  let signal="NO TRADE", entry=null, sl=null, tp=null;
+  let reason="No setup", status="WAIT";
+  let marketComment = "Struktur belum valid untuk entry. Tunggu konfirmasi candle berikutnya.";
+
+  if(!sessionStatus.allowed){
+    reason = "Di luar jam trading aktif";
+    status = "FILTER";
+    marketComment = "Filter jam trading aktif. Sistem menahan entry sampai masuk sesi London/New York.";
+  } else if(newsStatus.blocked){
+    reason = "Sedang blackout news berdampak tinggi";
+    status = "FILTER";
+    marketComment = "Filter news aktif. Hindari entry 20 menit sebelum dan sesudah rilis news besar.";
+  }
+
+  // ===== SCALPING ENTRY (Pullback ke EMA20) =====
+  if(status !== "FILTER" && strategyMode === "SCALPING"){
+
+    let candleSize = Math.abs(close.at(-1) - open.at(-1));
+    let emaGapOk   = trendStrength <= avgCandle * mode.maxEmaGapFactor;
+    let spikeOk    = candleSize <= mode.maxCandleSize;
+    let sidewaysOk = avgCandle > 1;
+
+    if(!spikeOk){
+      reason = "Spike candle >" + mode.maxCandleSize + " poin, skip entry";
+      marketComment = "Terdeteksi candle spike besar. Kemungkinan ada berita tiba-tiba, jangan masuk sekarang. Tunggu candle normal.";
+    } else if(!emaGapOk){
+      reason = "EMA gap terlalu jauh, market overextended";
+      marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam atau konsolidasi.";
+    } else if(!sidewaysOk){
+      reason = "Market sideways, volatilitas terlalu kecil";
+      marketComment = "Volatilitas terlalu kecil, market sedang sideways. Tunggu sesi aktif (London/New York).";
+    } else if(trend === "bullish" && last <= emaFast && close.at(-1) > open.at(-1)){
+      // BUY SCALP: harga pullback ke EMA20 + candle bullish konfirmasi
+      entry = last;
+      sl    = entry - mode.risk;
+      tp    = entry + mode.risk * mode.rr;
+      signal = "BUY SCALP";
+      reason = "Pullback ke EMA20 + candle bullish (searah trend)";
+      status = "VALID";
+      marketComment = "Pullback sehat ke EMA20 di trend bullish. Candle konfirmasi naik. Entry searah trend, bukan melawan arus.";
+    } else if(trend === "bearish" && last >= emaFast && close.at(-1) < open.at(-1)){
+      // SELL SCALP: harga bounce ke EMA20 + candle bearish konfirmasi
+      entry = last;
+      sl    = entry + mode.risk;
+      tp    = entry - mode.risk * mode.rr;
+      signal = "SELL SCALP";
+      reason = "Bounce ke EMA20 + candle bearish (searah trend)";
+      status = "VALID";
+      marketComment = "Harga bounce ke EMA20 di trend bearish. Candle konfirmasi turun. Entry searah trend, tidak melawan momentum.";
+    } else {
+      reason = "Belum ada pullback valid ke EMA20";
+      marketComment = trend === "bullish"
+        ? "Trend bullish aktif. Tunggu harga pullback ke EMA20, lalu konfirmasi candle hijau untuk BUY SCALP."
+        : "Trend bearish aktif. Tunggu harga bounce ke EMA20, lalu konfirmasi candle merah untuk SELL SCALP.";
+    }
+  }
+
+  // ===== NORMAL ENTRY (Sweep + BOS + Rejection) =====
+  else if(status !== "FILTER" && strategyMode === "NORMAL"){
+
+    if(trend==="bearish" && sweepHigh && bearishReject && bosDown && bearishMomentum && trendStrongEnough){
+      entry = (recentHigh + emaFast)/2;
+      sl    = recentHigh + mode.slBuffer;
+      let risk = Math.abs(entry-sl);
+      tp    = entry - risk*mode.rr;
+      signal = "SELL LIMIT";
+      reason = "Trend turun + sweep + BOS + rejection + momentum";
+      status = "VALID";
+      marketComment = "Setup bearish terkonfirmasi multi-filter. Tunggu retrace ke zona entry sebelum eksekusi.";
+    }
+    else if(trend==="bullish" && sweepLow && bullishReject && bosUp && bullishMomentum && trendStrongEnough){
+      entry = (recentLow + emaFast)/2;
+      sl    = recentLow - mode.slBuffer;
+      let risk = Math.abs(entry-sl);
+      tp    = entry + risk*mode.rr;
+      signal = "BUY LIMIT";
+      reason = "Trend naik + sweep + BOS + rejection + momentum";
+      status = "VALID";
+      marketComment = "Setup bullish terkonfirmasi multi-filter. Tunggu retrace ke zona entry sebelum eksekusi.";
+    }
+    else {
+      marketComment = trend === "bullish"
+        ? "Trend bullish, setup belum valid (sweep/BOS/rejection belum sinkron). Sabar tunggu konfirmasi."
+        : "Trend bearish, setup belum valid (sweep/BOS/rejection belum sinkron). Sabar tunggu konfirmasi.";
+    }
+  }
+
+  // ===== LOT + MANAGEMENT =====
+  let lot="-", manage="WAIT";
+
+  if(entry !== null){
+    let risk = Math.abs(entry - sl);
+    lot = calcLot(risk);
+    let profit = Math.abs(last - entry);
+
+    if(strategyMode === "SCALPING"){
+      // Management scalping: poin absolut
+      if(profit >= 15) manage="MOVE BE";
+      if(profit >= 30) manage="CLOSE PARTIAL";
+      if(profit >= 50) manage="HOLD RUNNER";
+    } else {
+      // Management normal: berbasis risk ratio
+      if(profit > risk)       manage="MOVE BE";
+      if(profit > risk*1.5)   manage="CLOSE PARTIAL";
+      if(profit > risk*2)     manage="HOLD RUNNER";
+    }
+  }
+
+  // ===== OUTPUT =====
+  let cls = signal.includes("BUY")?"buy":signal.includes("SELL")?"sell":"wait";
+
+  document.getElementById("signal").className=cls;
+  document.getElementById("signal").innerText=signal;
+  setMetric("entry","Entry", entry === null ? "Belum ada setup" : fix(entry), entry === null);
+  setMetric("tp","TP", tp === null ? "Belum ada setup" : fix(tp), tp === null);
+  setMetric("sl","SL", sl === null ? "Belum ada setup" : fix(sl), sl === null);
+  setMetric("lot","Lot", lot === "-" ? "-" : lot, lot === "-");
+  setMetric("status","Status", status, status !== "VALID");
+  setMetric("reason","Alasan", reason, signal === "NO TRADE");
+  setMetric("manage","Manajemen", manage, manage === "WAIT");
+  document.getElementById("marketComment").innerText=formatModeComment(marketComment);
+}
+
+// ===== LOOP =====
+setInterval(load,3000);
+setSourceLabel("Menunggu feed...");
+renderModeButtons();
+load();
+
+</script>
+
+</body>
+</html>
