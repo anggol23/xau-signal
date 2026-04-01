@@ -376,8 +376,10 @@ function getModeConfig(){
       slowEma: 50,         // EMA50 penentu trend utama
       risk: 25,            // SL fixed 25 poin
       rr: 1.5,             // TP = risk * 1.5 = 37.5 poin
-      maxCandleSize: 80,   // Filter spike: candle >80 poin = skip
-      maxEmaGapFactor: 3   // Filter EMA terlalu jauh: gap > avgCandle*3 = skip
+      maxCandleSize: 110,  // Balanced: spike filter dilonggarkan agar tidak terlalu banyak NO TRADE
+      maxEmaGapFactor: 4,  // Balanced: toleransi overextension lebih longgar
+      minAvgCandle: 0.7,   // Balanced: sideways filter lebih adaptif
+      pullbackTolerance: 4 // Toleransi jarak ke EMA20 (poin)
     };
   }
 
@@ -618,7 +620,9 @@ function analyze(close,high,low,open){
     let candleSize = Math.abs(close.at(-1) - open.at(-1));
     let emaGapOk   = trendStrength <= avgCandle * mode.maxEmaGapFactor;
     let spikeOk    = candleSize <= mode.maxCandleSize;
-    let sidewaysOk = avgCandle > 1;
+    let sidewaysOk = avgCandle > mode.minAvgCandle;
+    let nearEmaForBuy = last <= (emaFast + mode.pullbackTolerance);
+    let nearEmaForSell = last >= (emaFast - mode.pullbackTolerance);
 
     if(!spikeOk){
       reason = "Spike candle >" + mode.maxCandleSize + " poin, skip entry";
@@ -629,22 +633,22 @@ function analyze(close,high,low,open){
     } else if(!sidewaysOk){
       reason = "Market sideways, volatilitas terlalu kecil";
       marketComment = "Volatilitas terlalu kecil, market sedang sideways. Tunggu sesi aktif (London/New York).";
-    } else if(trend === "bullish" && last <= emaFast && close.at(-1) > open.at(-1)){
+    } else if(trend === "bullish" && nearEmaForBuy && close.at(-1) > open.at(-1)){
       // BUY SCALP: harga pullback ke EMA20 + candle bullish konfirmasi
       entry = last;
       sl    = entry - mode.risk;
       tp    = entry + mode.risk * mode.rr;
       signal = "BUY SCALP";
-      reason = "Pullback ke EMA20 + candle bullish (searah trend)";
+      reason = "Pullback area EMA20 + candle bullish (searah trend)";
       status = "VALID";
       marketComment = "Pullback sehat ke EMA20 di trend bullish. Candle konfirmasi naik. Entry searah trend, bukan melawan arus.";
-    } else if(trend === "bearish" && last >= emaFast && close.at(-1) < open.at(-1)){
+    } else if(trend === "bearish" && nearEmaForSell && close.at(-1) < open.at(-1)){
       // SELL SCALP: harga bounce ke EMA20 + candle bearish konfirmasi
       entry = last;
       sl    = entry + mode.risk;
       tp    = entry - mode.risk * mode.rr;
       signal = "SELL SCALP";
-      reason = "Bounce ke EMA20 + candle bearish (searah trend)";
+      reason = "Bounce area EMA20 + candle bearish (searah trend)";
       status = "VALID";
       marketComment = "Harga bounce ke EMA20 di trend bearish. Candle konfirmasi turun. Entry searah trend, tidak melawan momentum.";
     } else {
