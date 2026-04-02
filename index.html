@@ -1126,65 +1126,6 @@ function analyze(close,high,low,open){
   let plannedEntry = null;
   let entryLabel = "Entry";
 
-  // ===== CEK POSISI AKTIF (berlaku lintas mode — tetap dikunci sampai TP/SL) =====
-  let tradeHandled = false;
-  if(activeScalpTrade){
-    tradeHandled = true;
-    let isBuy = activeScalpTrade.side === "BUY";
-    let hitTp = isBuy ? last >= activeScalpTrade.tp : last <= activeScalpTrade.tp;
-    let hitSl = isBuy ? last <= activeScalpTrade.sl : last >= activeScalpTrade.sl;
-
-    if(hitTp){
-      signal = isBuy ? "BUY SCALP TP HIT" : "SELL SCALP TP HIT";
-      entry = activeScalpTrade.entry; sl = activeScalpTrade.sl; tp = activeScalpTrade.tp;
-      reason = "Target tercapai"; status = "DONE";
-      marketComment = "TP tercapai. Tunggu pullback berikutnya untuk entry baru.";
-      pushHistory(activeScalpTrade, "TP HIT");
-      activeScalpTrade = null;
-    } else if(hitSl){
-      signal = isBuy ? "BUY SCALP SL HIT" : "SELL SCALP SL HIT";
-      entry = activeScalpTrade.entry; sl = activeScalpTrade.sl; tp = activeScalpTrade.tp;
-      reason = "Stop loss tersentuh"; status = "DONE";
-      marketComment = "SL tersentuh. Tunggu setup ulang yang lebih rapi.";
-      pushHistory(activeScalpTrade, "SL HIT");
-      activeScalpTrade = null;
-    } else {
-      signal = isBuy ? "BUY SCALP" : "SELL SCALP";
-      entry = activeScalpTrade.entry; sl = activeScalpTrade.sl; tp = activeScalpTrade.tp;
-      reason = "Posisi scalp aktif, menunggu TP/SL";
-      status = "RUNNING";
-      marketComment = "Posisi SCALP masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
-      scalpDebug = "ACTIVE " + activeScalpTrade.side + " | Locked sampai TP/SL";
-    }
-  } else if(activeNormalTrade){
-    tradeHandled = true;
-    let isNBuy = activeNormalTrade.side === "BUY";
-    let nHitTp = isNBuy ? last >= activeNormalTrade.tp : last <= activeNormalTrade.tp;
-    let nHitSl = isNBuy ? last <= activeNormalTrade.sl : last >= activeNormalTrade.sl;
-
-    if(nHitTp){
-      signal = isNBuy ? "BUY LIMIT TP HIT" : "SELL LIMIT TP HIT";
-      entry = activeNormalTrade.entry; sl = activeNormalTrade.sl; tp = activeNormalTrade.tp;
-      reason = "Target tercapai"; status = "DONE";
-      marketComment = "TP tercapai di mode NORMAL. Tunggu setup berikutnya.";
-      pushHistory(activeNormalTrade, "TP HIT");
-      activeNormalTrade = null;
-    } else if(nHitSl){
-      signal = isNBuy ? "BUY LIMIT SL HIT" : "SELL LIMIT SL HIT";
-      entry = activeNormalTrade.entry; sl = activeNormalTrade.sl; tp = activeNormalTrade.tp;
-      reason = "Stop loss tersentuh"; status = "DONE";
-      marketComment = "SL tersentuh di mode NORMAL. Tunggu setup ulang.";
-      pushHistory(activeNormalTrade, "SL HIT");
-      activeNormalTrade = null;
-    } else {
-      signal = isNBuy ? "BUY LIMIT" : "SELL LIMIT";
-      entry = activeNormalTrade.entry; sl = activeNormalTrade.sl; tp = activeNormalTrade.tp;
-      reason = "Posisi normal aktif, menunggu TP/SL";
-      status = "RUNNING";
-      marketComment = "Posisi NORMAL masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
-    }
-  }
-
   if(!sessionStatus.allowed){
     reason = "Di luar jam trading aktif";
     status = "FILTER";
@@ -1196,7 +1137,7 @@ function analyze(close,high,low,open){
   }
 
   // ===== SCALPING ENTRY (Pullback ke EMA20) =====
-  if(!tradeHandled && status !== "FILTER" && strategyMode === "SCALPING"){
+  if(status !== "FILTER" && strategyMode === "SCALPING"){
 
     let m5Series = buildTimeframeSeries(fallbackTicks, 300, 50);
     let minM5BarsForScalp = 8;
@@ -1296,7 +1237,42 @@ function analyze(close,high,low,open){
     let pullbackOk = mode.requireEmaPullback ? nearEmaPullback : true;
     let htfAlignedForTrend = m5Trend === "bullish" ? htfBullAligned : htfBearAligned;
 
-    if(!spikeOk){
+    if(activeScalpTrade){
+      let isBuy = activeScalpTrade.side === "BUY";
+      let hitTp = isBuy ? last >= activeScalpTrade.tp : last <= activeScalpTrade.tp;
+      let hitSl = isBuy ? last <= activeScalpTrade.sl : last >= activeScalpTrade.sl;
+
+      if(hitTp){
+        signal = isBuy ? "BUY SCALP TP HIT" : "SELL SCALP TP HIT";
+        entry = activeScalpTrade.entry;
+        sl = activeScalpTrade.sl;
+        tp = activeScalpTrade.tp;
+        reason = "Target tercapai";
+        status = "DONE";
+        marketComment = "TP tercapai. Tunggu pullback berikutnya untuk entry baru.";
+        pushHistory(activeScalpTrade, "TP HIT");
+        activeScalpTrade = null;
+      } else if(hitSl){
+        signal = isBuy ? "BUY SCALP SL HIT" : "SELL SCALP SL HIT";
+        entry = activeScalpTrade.entry;
+        sl = activeScalpTrade.sl;
+        tp = activeScalpTrade.tp;
+        reason = "Stop loss tersentuh";
+        status = "DONE";
+        marketComment = "SL tersentuh. Tunggu setup ulang yang lebih rapi.";
+        pushHistory(activeScalpTrade, "SL HIT");
+        activeScalpTrade = null;
+      } else {
+        signal = isBuy ? "BUY SCALP" : "SELL SCALP";
+        entry = activeScalpTrade.entry;
+        sl = activeScalpTrade.sl;
+        tp = activeScalpTrade.tp;
+        reason = "Posisi aktif, menunggu TP/SL";
+        status = "RUNNING";
+        marketComment = "Posisi masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
+        scalpDebug = "ACTIVE " + activeScalpTrade.side + " | Locked sampai TP/SL";
+      }
+    } else if(!spikeOk){
       reason = "Spike candle >" + mode.maxCandleSize + " poin, skip entry";
       marketComment = "Terdeteksi candle spike besar. Kemungkinan ada berita tiba-tiba, jangan masuk sekarang. Tunggu candle normal.";
     } else if(!activeScalpTrade && !emaGapOk && !allowByPullback){
@@ -1377,7 +1353,7 @@ function analyze(close,high,low,open){
 
   // ===== NORMAL ENTRY (min 3 dari 5 kondisi: sweep, BOS, rejection, momentum, trendStrength) =====
   // Wajib: trendStrength + rejection (kualitas arah), lalu minimal 1 lagi dari sisa 3.
-  else if(!tradeHandled && status !== "FILTER" && strategyMode === "NORMAL"){
+  else if(status !== "FILTER" && strategyMode === "NORMAL"){
 
     let isBull = trend === "bullish";
     let sweepOk     = isBull ? sweepLow    : sweepHigh;
@@ -1402,8 +1378,45 @@ function analyze(close,high,low,open){
       + " | Momentum " + (momentumOk ? "OK" : "NO")
       + " | TrendStrength " + (trendOk ? "OK" : "NO");
 
+    // Jika ada posisi NORMAL aktif, kunci sinyal sampai TP atau SL
+    if(activeNormalTrade){
+      let isNBuy = activeNormalTrade.side === "BUY";
+      let nHitTp = isNBuy ? last >= activeNormalTrade.tp : last <= activeNormalTrade.tp;
+      let nHitSl = isNBuy ? last <= activeNormalTrade.sl : last >= activeNormalTrade.sl;
+
+      if(nHitTp){
+        signal = isNBuy ? "BUY LIMIT TP HIT" : "SELL LIMIT TP HIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Target tercapai";
+        status = "DONE";
+        marketComment = "TP tercapai di mode NORMAL. Tunggu setup berikutnya.";
+        pushHistory(activeNormalTrade, "TP HIT");
+        activeNormalTrade = null;
+      } else if(nHitSl){
+        signal = isNBuy ? "BUY LIMIT SL HIT" : "SELL LIMIT SL HIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Stop loss tersentuh";
+        status = "DONE";
+        marketComment = "SL tersentuh di mode NORMAL. Tunggu setup ulang.";
+        pushHistory(activeNormalTrade, "SL HIT");
+        activeNormalTrade = null;
+      } else {
+        signal = isNBuy ? "BUY LIMIT" : "SELL LIMIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Posisi aktif, menunggu TP/SL";
+        status = "RUNNING";
+        marketComment = "Posisi NORMAL masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
+      }
+    }
+
     // Sinyal valid jika: minimal 3 kondisi terpenuhi + wajib ada rejection + trendStrength
-    if(score >= 3 && rejectionOk && trendOk){
+    else if(score >= 3 && rejectionOk && trendOk){
       if(isBull){
         entry = (recentLow + emaFast) / 2;
         sl    = recentLow - mode.slBuffer;
