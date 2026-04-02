@@ -111,6 +111,42 @@
       margin-bottom: 10px;
     }
 
+    .preset-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .preset-btn {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(15, 23, 42, 0.58);
+      color: #93c5fd;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .preset-btn:hover {
+      border-color: rgba(125, 211, 252, 0.5);
+      color: #dbeafe;
+    }
+
+    .preset-btn.active {
+      border-color: #38bdf8;
+      background: rgba(14, 116, 144, 0.35);
+      color: #e0f2fe;
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.25);
+    }
+
+    .preset-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .mode-btn {
       border: 1px solid rgba(148, 163, 184, 0.25);
       background: rgba(15, 23, 42, 0.72);
@@ -320,6 +356,10 @@
         <button type="button" id="modeNormal" class="mode-btn" onclick="setStrategyMode('NORMAL')">Mode Normal</button>
         <button type="button" id="modeScalp" class="mode-btn" onclick="setStrategyMode('SCALPING')">Mode Scalping</button>
       </div>
+      <div class="preset-switch">
+        <button type="button" id="presetSafe" class="preset-btn" onclick="setScalpPreset('SAFE')">Preset Safe</button>
+        <button type="button" id="presetAggressive" class="preset-btn" onclick="setScalpPreset('AGGRESSIVE')">Preset Aggressive</button>
+      </div>
       <p id="signal" class="wait">WAIT</p>
       <div class="signal-grid">
         <p id="source"></p>
@@ -355,10 +395,12 @@ let riskPercent = 1;
 let fallbackPrices = [];
 let fallbackTicks = [];
 let strategyMode = "SCALPING"; // Pilih: "NORMAL" atau "SCALPING"
+let scalpPreset = "SAFE"; // SAFE / AGGRESSIVE
 let allowAllTradingSessions = true;
 let activeScalpTrade = null;
 let tradeHistory = [];
 const HISTORY_STORAGE_KEY = "xauusd-sniper-history-v1";
+const SCALP_PRESET_STORAGE_KEY = "xauusd-sniper-scalp-preset-v1";
 const SAMPLE_INTERVAL_SECONDS = 3;
 const PRICE_STORAGE_KEY = "xauusd-sniper-ticks-v1";
 const MAX_PRICE_HISTORY = 20000;
@@ -401,6 +443,12 @@ new TradingView.widget({
 fallbackTicks = loadStoredPrices();
 fallbackPrices = fallbackTicks.map(t => t.p);
 try{ tradeHistory = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]"); }catch(_e){ tradeHistory = []; }
+try{
+  let savedPreset = localStorage.getItem(SCALP_PRESET_STORAGE_KEY);
+  if(savedPreset === "SAFE" || savedPreset === "AGGRESSIVE"){
+    scalpPreset = savedPreset;
+  }
+}catch(_e){}
 
 // ===== FORMAT =====
 function fix(v){
@@ -748,10 +796,16 @@ function formatModeComment(text){
 function renderModeButtons(){
   let normalBtn = document.getElementById("modeNormal");
   let scalpBtn = document.getElementById("modeScalp");
-  if(!normalBtn || !scalpBtn) return;
+  let safeBtn = document.getElementById("presetSafe");
+  let aggressiveBtn = document.getElementById("presetAggressive");
+  if(!normalBtn || !scalpBtn || !safeBtn || !aggressiveBtn) return;
 
   normalBtn.classList.toggle("active", strategyMode === "NORMAL");
   scalpBtn.classList.toggle("active", strategyMode === "SCALPING");
+  safeBtn.classList.toggle("active", scalpPreset === "SAFE");
+  aggressiveBtn.classList.toggle("active", scalpPreset === "AGGRESSIVE");
+  safeBtn.disabled = strategyMode !== "SCALPING";
+  aggressiveBtn.disabled = strategyMode !== "SCALPING";
 }
 
 function setStrategyMode(mode){
@@ -764,22 +818,48 @@ function setStrategyMode(mode){
   load();
 }
 
+function setScalpPreset(preset){
+  if(preset !== "SAFE" && preset !== "AGGRESSIVE") return;
+  scalpPreset = preset;
+  try{ localStorage.setItem(SCALP_PRESET_STORAGE_KEY, scalpPreset); }catch(_e){}
+  renderModeButtons();
+  if(strategyMode === "SCALPING") load();
+}
+
 function getModeConfig(){
   if(strategyMode === "SCALPING"){
+    if(scalpPreset === "AGGRESSIVE"){
+      return {
+        name: "SCALPING (AGGRESSIVE)",
+        fastEma: 18,
+        slowEma: 50,
+        risk: 25,
+        rr: 1.8,
+        maxCandleSize: 110,
+        maxEmaGapFactor: 4.8,
+        minAvgCandle: 0.35,
+        pullbackTolerance: 6,
+        sndLookback: 22,
+        sndZonePaddingFactor: 0.75,
+        sndTouchTolerance: 3,
+        minWickFactor: 1.4
+      };
+    }
+
     return {
-      name: "SCALPING",
-      fastEma: 20,         // EMA20 sebagai zona pullback
-      slowEma: 50,         // EMA50 penentu trend utama
-      risk: 25,            // SL fixed 25 poin
-      rr: 1.2,             // TP = risk * 1.2 = 30 poin
-      maxCandleSize: 130,  // Lebih longgar: tetap hindari spike ekstrem
-      maxEmaGapFactor: 5,  // Lebih longgar: trend kuat tetap bisa dieksekusi
+      name: "SCALPING (SAFE)",
+      fastEma: 21,
+      slowEma: 55,
+      risk: 25,
+      rr: 1.4,
+      maxCandleSize: 95,
+      maxEmaGapFactor: 4,
       minAvgCandle: 0.35,
-      pullbackTolerance: 8, // Area pullback EMA20 diperlebar
-      sndLookback: 18,
-      sndZonePaddingFactor: 0.8,
-      sndTouchTolerance: 4,
-      minWickFactor: 1.2
+      pullbackTolerance: 5,
+      sndLookback: 26,
+      sndZonePaddingFactor: 0.7,
+      sndTouchTolerance: 3,
+      minWickFactor: 1.6
     };
   }
 
