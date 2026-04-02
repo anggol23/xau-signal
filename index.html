@@ -1092,11 +1092,13 @@ function analyze(close,high,low,open){
   let trendStrength = Math.abs(emaFast - emaSlow);
 
   // ===== STRUCTURE =====
-  let recentHigh = Math.max(...high.slice(-10));
-  let recentLow  = Math.min(...low.slice(-10));
+  // Penting: referensi struktur harus mengecualikan candle saat ini,
+  // agar sweep/BOS bisa benar-benar terdeteksi.
+  let recentHigh = Math.max(...high.slice(-11, -1));
+  let recentLow  = Math.min(...low.slice(-11, -1));
 
-  let prevHigh = Math.max(...high.slice(-6,-1));
-  let prevLow  = Math.min(...low.slice(-6,-1));
+  let prevHigh = Math.max(...high.slice(-7, -1));
+  let prevLow  = Math.min(...low.slice(-7, -1));
 
   let bosUp   = last > prevHigh;
   let bosDown = last < prevLow;
