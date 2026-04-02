@@ -657,8 +657,6 @@ function analyze(close,high,low,open){
     let recentRange = Math.max(...close.slice(-12)) - Math.min(...close.slice(-12));
     // Synthetic candle cenderung tanpa wick; gabungkan beberapa metrik agar lebih representatif.
     let effectiveVolatility = Math.max(avgCandle, closeDeltaAvg * 1.5, recentRange / 4, candleSize * 0.9);
-    let sidewaysThreshold = allowAllTradingSessions ? mode.minAvgCandle * 0.6 : mode.minAvgCandle;
-    let sidewaysOk = effectiveVolatility > sidewaysThreshold;
     let nearEmaForBuy = last <= (emaFast + mode.pullbackTolerance);
     let nearEmaForSell = last >= (emaFast - mode.pullbackTolerance);
     let nearEmaPullback = trend === "bullish" ? nearEmaForBuy : nearEmaForSell;
@@ -699,8 +697,6 @@ function analyze(close,high,low,open){
     let emaGapOk = trendStrength <= avgCandleRef * mode.maxEmaGapFactor;
     // Jika harga sudah pullback dekat EMA20, izinkan entry walau EMA20-EMA50 masih renggang.
     let allowByPullback = nearEmaPullback;
-    // Jika trend cukup kuat dan harga sudah di area pullback, jangan terlalu ketat memblokir sideways.
-    let allowSidewaysByTrend = nearEmaPullback && trendStrength >= Math.max(0.8, avgCandleRef * 0.35);
 
     // Jika sudah ada posisi scalping aktif, pertahankan sinyal sampai TP/SL atau pergantian trend.
     if(activeScalpTrade){
@@ -754,9 +750,6 @@ function analyze(close,high,low,open){
     } else if(!activeScalpTrade && !emaGapOk && !allowByPullback){
       reason = "EMA gap terlalu jauh, market overextended";
       marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam ke area EMA20 atau konsolidasi.";
-    } else if(!activeScalpTrade && !sidewaysOk && !allowSidewaysByTrend){
-      reason = "Market sideways, volatilitas terlalu kecil";
-      marketComment = "Volatilitas kecil (" + fix(effectiveVolatility) + " < " + fix(sidewaysThreshold) + "). Market cenderung sideways. " + getSessionGuidanceText();
     } else if(!activeScalpTrade && trend === "bullish" && !inDemandZone){
       reason = "Harga belum masuk demand zone";
       marketComment = "Trend bullish terdeteksi, tapi harga belum menyentuh zona demand. Tunggu harga turun ke area buyer dulu.";
