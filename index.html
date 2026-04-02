@@ -398,6 +398,7 @@ let strategyMode = "SCALPING"; // Pilih: "NORMAL" atau "SCALPING"
 let scalpPreset = "SAFE"; // SAFE / AGGRESSIVE
 let allowAllTradingSessions = true;
 let activeScalpTrade = null;
+let activeNormalTrade = null;
 let tradeHistory = [];
 const HISTORY_STORAGE_KEY = "xauusd-sniper-history-v1";
 const SCALP_PRESET_STORAGE_KEY = "xauusd-sniper-scalp-preset-v1";
@@ -813,6 +814,9 @@ function setStrategyMode(mode){
   strategyMode = mode === "NORMAL" ? "NORMAL" : "SCALPING";
   if(prevMode === "SCALPING" && strategyMode !== "SCALPING"){
     activeScalpTrade = null;
+  }
+  if(prevMode === "NORMAL" && strategyMode !== "NORMAL"){
+    activeNormalTrade = null;
   }
   renderModeButtons();
   load();
@@ -1382,8 +1386,45 @@ function analyze(close,high,low,open){
       + " | Momentum " + (momentumOk ? "OK" : "NO")
       + " | TrendStrength " + (trendOk ? "OK" : "NO");
 
+    // Jika ada posisi NORMAL aktif, kunci sinyal sampai TP atau SL
+    if(activeNormalTrade){
+      let isNBuy = activeNormalTrade.side === "BUY";
+      let nHitTp = isNBuy ? last >= activeNormalTrade.tp : last <= activeNormalTrade.tp;
+      let nHitSl = isNBuy ? last <= activeNormalTrade.sl : last >= activeNormalTrade.sl;
+
+      if(nHitTp){
+        signal = isNBuy ? "BUY LIMIT TP HIT" : "SELL LIMIT TP HIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Target tercapai";
+        status = "DONE";
+        marketComment = "TP tercapai di mode NORMAL. Tunggu setup berikutnya.";
+        pushHistory(activeNormalTrade, "TP HIT");
+        activeNormalTrade = null;
+      } else if(nHitSl){
+        signal = isNBuy ? "BUY LIMIT SL HIT" : "SELL LIMIT SL HIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Stop loss tersentuh";
+        status = "DONE";
+        marketComment = "SL tersentuh di mode NORMAL. Tunggu setup ulang.";
+        pushHistory(activeNormalTrade, "SL HIT");
+        activeNormalTrade = null;
+      } else {
+        signal = isNBuy ? "BUY LIMIT" : "SELL LIMIT";
+        entry = activeNormalTrade.entry;
+        sl = activeNormalTrade.sl;
+        tp = activeNormalTrade.tp;
+        reason = "Posisi aktif, menunggu TP/SL";
+        status = "RUNNING";
+        marketComment = "Posisi NORMAL masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
+      }
+    }
+
     // Sinyal valid jika: minimal 3 kondisi terpenuhi + wajib ada rejection + trendStrength
-    if(score >= 3 && rejectionOk && trendOk){
+    else if(score >= 3 && rejectionOk && trendOk){
       if(isBull){
         entry = (recentLow + emaFast) / 2;
         sl    = recentLow - mode.slBuffer;
@@ -1400,6 +1441,7 @@ function analyze(close,high,low,open){
       reason = checklistLabel + " → " + signalQuality;
       status = "VALID";
       marketComment = "Setup " + trend + " terkonfirmasi " + signalQuality + ". Tunggu retrace ke zona entry sebelum eksekusi.";
+      activeNormalTrade = {side: isBull ? "BUY" : "SELL", entry, sl, tp};
     }
     else {
       reason = checklistLabel + " → " + score + "/5 (butuh min 3 + Rejection + TrendStrength)";
