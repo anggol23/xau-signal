@@ -1355,46 +1355,57 @@ function analyze(close,high,low,open){
     }
   }
 
-  // ===== NORMAL ENTRY (Sweep + BOS + Rejection) =====
+  // ===== NORMAL ENTRY (min 3 dari 5 kondisi: sweep, BOS, rejection, momentum, trendStrength) =====
+  // Wajib: trendStrength + rejection (kualitas arah), lalu minimal 1 lagi dari sisa 3.
   else if(status !== "FILTER" && strategyMode === "NORMAL"){
 
-    if(trend==="bearish" && sweepHigh && bearishReject && bosDown && bearishMomentum && trendStrongEnough){
-      entry = (recentHigh + emaFast)/2;
-      sl    = recentHigh + mode.slBuffer;
-      let risk = Math.abs(entry-sl);
-      tp    = entry - risk*mode.rr;
-      signal = "SELL LIMIT";
-      reason = "Trend turun + sweep + BOS + rejection + momentum";
+    let isBull = trend === "bullish";
+    let sweepOk     = isBull ? sweepLow    : sweepHigh;
+    let bosOk       = isBull ? bosUp       : bosDown;
+    let rejectionOk = isBull ? bullishReject : bearishReject;
+    let momentumOk  = isBull ? bullishMomentum : bearishMomentum;
+    let trendOk     = trendStrongEnough;
+
+    // Hitung berapa kondisi terpenuhi
+    let checklist = [sweepOk, bosOk, rejectionOk, momentumOk, trendOk];
+    let score = checklist.filter(Boolean).length;
+
+    // Kualitas sinyal berdasarkan jumlah konfirmasi
+    let signalQuality = score === 5 ? "KUAT (5/5)"
+      : score === 4 ? "BAIK (4/5)"
+      : score === 3 ? "CUKUP (3/5)"
+      : null;
+
+    let checklistLabel = "Checklist NORMAL | Sweep " + (sweepOk ? "OK" : "NO")
+      + " | BOS " + (bosOk ? "OK" : "NO")
+      + " | Rejection " + (rejectionOk ? "OK" : "NO")
+      + " | Momentum " + (momentumOk ? "OK" : "NO")
+      + " | TrendStrength " + (trendOk ? "OK" : "NO");
+
+    // Sinyal valid jika: minimal 3 kondisi terpenuhi + wajib ada rejection + trendStrength
+    if(score >= 3 && rejectionOk && trendOk){
+      if(isBull){
+        entry = (recentLow + emaFast) / 2;
+        sl    = recentLow - mode.slBuffer;
+        let risk = Math.abs(entry - sl);
+        tp    = entry + risk * mode.rr;
+        signal = "BUY LIMIT";
+      } else {
+        entry = (recentHigh + emaFast) / 2;
+        sl    = recentHigh + mode.slBuffer;
+        let risk = Math.abs(entry - sl);
+        tp    = entry - risk * mode.rr;
+        signal = "SELL LIMIT";
+      }
+      reason = checklistLabel + " → " + signalQuality;
       status = "VALID";
-      marketComment = "Setup bearish terkonfirmasi multi-filter. Tunggu retrace ke zona entry sebelum eksekusi.";
-    }
-    else if(trend==="bullish" && sweepLow && bullishReject && bosUp && bullishMomentum && trendStrongEnough){
-      entry = (recentLow + emaFast)/2;
-      sl    = recentLow - mode.slBuffer;
-      let risk = Math.abs(entry-sl);
-      tp    = entry + risk*mode.rr;
-      signal = "BUY LIMIT";
-      reason = "Trend naik + sweep + BOS + rejection + momentum";
-      status = "VALID";
-      marketComment = "Setup bullish terkonfirmasi multi-filter. Tunggu retrace ke zona entry sebelum eksekusi.";
+      marketComment = "Setup " + trend + " terkonfirmasi " + signalQuality + ". Tunggu retrace ke zona entry sebelum eksekusi.";
     }
     else {
-      let isBull = trend === "bullish";
-      let sweepOk = isBull ? sweepLow : sweepHigh;
-      let bosOk = isBull ? bosUp : bosDown;
-      let rejectionOk = isBull ? bullishReject : bearishReject;
-      let momentumOk = isBull ? bullishMomentum : bearishMomentum;
-      let trendOk = trendStrongEnough;
-
-      reason = "Checklist NORMAL | Sweep " + (sweepOk ? "OK" : "NO")
-        + " | BOS " + (bosOk ? "OK" : "NO")
-        + " | Rejection " + (rejectionOk ? "OK" : "NO")
-        + " | Momentum " + (momentumOk ? "OK" : "NO")
-        + " | TrendStrength " + (trendOk ? "OK" : "NO");
-
-      marketComment = "Trend internal NORMAL " + trend
-        + " (berdasarkan EMA/struktur mode NORMAL). "
-        + "Setup belum valid karena checklist belum lengkap. Tunggu sampai semua komponen sinkron.";
+      reason = checklistLabel + " → " + score + "/5 (butuh min 3 + Rejection + TrendStrength)";
+      marketComment = "Trend internal NORMAL " + trend + ". "
+        + "Butuh minimal 3 kondisi terpenuhi (wajib Rejection & TrendStrength). "
+        + "Saat ini " + score + "/5 — tunggu konfirmasi berikutnya.";
     }
   }
 
