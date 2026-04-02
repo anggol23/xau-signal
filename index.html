@@ -209,6 +209,83 @@
         gap: 6px;
       }
     }
+
+    /* ===== HISTORY ENTRY ===== */
+    .history-box {
+      margin-top: 14px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .history-title {
+      margin: 0;
+      font-size: 18px;
+      color: #e2e8f0;
+    }
+
+    .history-clear-btn {
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.72);
+      color: #94a3b8;
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .history-clear-btn:hover {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+
+    .history-empty {
+      text-align: center;
+      color: #475569;
+      font-size: 14px;
+      padding: 24px 0;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .history-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: #64748b;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .history-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+      color: #cbd5e1;
+    }
+
+    .history-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .history-table tr:hover td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .hist-side-buy  { color: #22c55e; font-weight: 700; }
+    .hist-side-sell { color: #ef4444; font-weight: 700; }
+    .hist-result-tp   { color: #22c55e; font-weight: 700; }
+    .hist-result-sl   { color: #ef4444; font-weight: 700; }
+    .hist-result-exit { color: #facc15; font-weight: 700; }
   </style>
 </head>
 
@@ -254,6 +331,15 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== HISTORY ENTRY PANEL ===== -->
+  <div class="box history-box">
+    <div class="history-header">
+      <h2 class="history-title">📋 History Entry</h2>
+      <button type="button" class="history-clear-btn" onclick="clearHistory()">Hapus Riwayat</button>
+    </div>
+    <div id="historyTable"></div>
+  </div>
 </div>
 
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -268,6 +354,8 @@ let fallbackTicks = [];
 let strategyMode = "SCALPING"; // Pilih: "NORMAL" atau "SCALPING"
 let allowAllTradingSessions = true;
 let activeScalpTrade = null;
+let tradeHistory = [];
+const HISTORY_STORAGE_KEY = "xauusd-sniper-history-v1";
 const SAMPLE_INTERVAL_SECONDS = 3;
 const PRICE_STORAGE_KEY = "xauusd-sniper-ticks-v1";
 const MAX_PRICE_HISTORY = 20000;
@@ -309,6 +397,7 @@ new TradingView.widget({
 
 fallbackTicks = loadStoredPrices();
 fallbackPrices = fallbackTicks.map(t => t.p);
+try{ tradeHistory = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]"); }catch(_e){ tradeHistory = []; }
 
 // ===== FORMAT =====
 function fix(v){
@@ -369,6 +458,54 @@ function saveStoredPrices(){
   }catch(_e){
     // Ignore storage failures.
   }
+}
+
+// ===== HISTORY ENTRY =====
+function pushHistory(trade, result){
+  tradeHistory.unshift({
+    time: new Date().toLocaleString("id-ID", {hour:"2-digit", minute:"2-digit", second:"2-digit", timeZone:"Asia/Jakarta"}),
+    side: trade.side,
+    entry: trade.entry,
+    tp: trade.tp,
+    sl: trade.sl,
+    result: result
+  });
+  if(tradeHistory.length > 30) tradeHistory.pop();
+  try{ localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(tradeHistory)); }catch(_e){}
+  renderHistory();
+}
+
+function clearHistory(){
+  tradeHistory = [];
+  try{ localStorage.removeItem(HISTORY_STORAGE_KEY); }catch(_e){}
+  renderHistory();
+}
+
+function renderHistory(){
+  let el = document.getElementById("historyTable");
+  if(!el) return;
+  if(!tradeHistory.length){
+    el.innerHTML = '<p class="history-empty">Belum ada history entry scalping.</p>';
+    return;
+  }
+  let rows = tradeHistory.map(h => {
+    let sideClass = h.side === "BUY" ? "hist-side-buy" : "hist-side-sell";
+    let resClass = h.result === "TP HIT" ? "hist-result-tp" : h.result === "SL HIT" ? "hist-result-sl" : "hist-result-exit";
+    return `<tr>
+      <td>${h.time}</td>
+      <td class="${sideClass}">${h.side}</td>
+      <td>${h.entry.toFixed(2)}</td>
+      <td class="hist-result-tp">${h.tp.toFixed(2)}</td>
+      <td class="hist-result-sl">${h.sl.toFixed(2)}</td>
+      <td class="${resClass}">${h.result}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `<table class="history-table">
+    <thead><tr>
+      <th>Waktu</th><th>Arah</th><th>Entry</th><th>TP</th><th>SL</th><th>Hasil</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 // ===== HISTORICAL INIT =====
@@ -948,6 +1085,7 @@ function analyze(close,high,low,open){
         reason = "Target tercapai";
         status = "DONE";
         marketComment = "TP tercapai. Tunggu pullback berikutnya untuk entry baru.";
+        pushHistory(activeScalpTrade, "TP HIT");
         activeScalpTrade = null;
       } else if(hitSl){
         signal = isBuy ? "BUY SCALP SL HIT" : "SELL SCALP SL HIT";
@@ -957,6 +1095,7 @@ function analyze(close,high,low,open){
         reason = "Stop loss tersentuh";
         status = "DONE";
         marketComment = "SL tersentuh. Tunggu setup ulang yang lebih rapi.";
+        pushHistory(activeScalpTrade, "SL HIT");
         activeScalpTrade = null;
       } else if(trendReversal){
         signal = isBuy ? "BUY SCALP EXIT" : "SELL SCALP EXIT";
@@ -966,6 +1105,7 @@ function analyze(close,high,low,open){
         reason = "Trend berbalik, exit posisi";
         status = "DONE";
         marketComment = "Trend berbalik. Posisi ditutup untuk proteksi profit/risk.";
+        pushHistory(activeScalpTrade, "EXIT");
         activeScalpTrade = null;
       } else {
         signal = isBuy ? "BUY SCALP" : "SELL SCALP";
@@ -1104,6 +1244,7 @@ function analyze(close,high,low,open){
 // ===== LOOP =====
 setSourceLabel("Menunggu feed...");
 renderModeButtons();
+renderHistory();
 // Pre-populate historical M5 bars so M5 collection is instant on any browser,
 // then start the live polling loop.
 (async () => {
