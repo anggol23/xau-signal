@@ -269,7 +269,7 @@ let allowAllTradingSessions = true;
 let activeScalpTrade = null;
 const SAMPLE_INTERVAL_SECONDS = 3;
 const PRICE_STORAGE_KEY = "xauusd-sniper-prices-v2";
-const MAX_PRICE_HISTORY = 8400;
+const MAX_PRICE_HISTORY = 20000;
 
 const tradingSessions = [
   {name: "London", start: "14:00", end: "18:30"},
@@ -734,6 +734,7 @@ function analyze(close,high,low,open){
     ? "Menunggu validasi SND + order flow"
     : "Non-scalping mode";
   let plannedEntry = null;
+  let entryLabel = "Entry";
 
   if(!sessionStatus.allowed){
     reason = "Di luar jam trading aktif";
@@ -781,6 +782,11 @@ function analyze(close,high,low,open){
       && upperWickNow > lowerWickNow;
 
     let trendTag = trend === "bullish" ? "Trend Bullish" : "Trend Bearish";
+    let h1State = mtfState.results.H1;
+    let m30State = mtfState.results.M30;
+    let htfReady = h1State.ready && m30State.ready;
+    let htfBullAligned = h1State.bias === "bullish" && m30State.bias === "bullish";
+    let htfBearAligned = h1State.bias === "bearish" && m30State.bias === "bearish";
     let sndTag = trend === "bullish"
       ? (inDemandZone ? "Demand OK" : "Belum Demand")
       : (inSupplyZone ? "Supply OK" : "Belum Supply");
@@ -790,8 +796,12 @@ function analyze(close,high,low,open){
     let htfTag = mtfState.direction === "neutral"
       ? "HTF Netral"
       : (mtfState.direction === "bullish" ? "HTF Bullish" : "HTF Bearish");
-    scalpDebug = trendTag + " | " + htfTag + " | " + sndTag + " | " + ofTag;
+    let htfAlignTag = !htfReady
+      ? "H1/M30 Collecting"
+      : (htfBullAligned || htfBearAligned ? "H1/M30 Aligned" : "H1/M30 Belum Align");
+    scalpDebug = trendTag + " | " + htfTag + " | " + htfAlignTag + " | " + sndTag + " | " + ofTag;
     plannedEntry = trend === "bullish" ? demandTop : supplyBottom;
+    entryLabel = "Area Fokus";
 
     // Gunakan baseline minimum supaya filter EMA-gap tidak terlalu keras saat candle kecil.
     let avgCandleRef = Math.max(avgCandle, 2);
@@ -851,15 +861,15 @@ function analyze(close,high,low,open){
     } else if(!activeScalpTrade && !emaGapOk && !allowByPullback){
       reason = "EMA gap terlalu jauh, market overextended";
       marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam ke area EMA20 atau konsolidasi.";
-    } else if(!activeScalpTrade && trend === "bullish" && mtfState.direction === "bearish"){
-      reason = "Bias H1/M30/M15/M5 masih bearish";
-      marketComment = "Trend kecil bullish, tapi bias timeframe besar masih bearish. Hindari buy dan tunggu alignment naik.";
-    } else if(!activeScalpTrade && trend === "bearish" && mtfState.direction === "bullish"){
-      reason = "Bias H1/M30/M15/M5 masih bullish";
-      marketComment = "Trend kecil bearish, tapi bias timeframe besar masih bullish. Hindari sell dan tunggu alignment turun.";
-    } else if(!activeScalpTrade && mtfState.direction === "neutral"){
-      reason = "Bias timeframe besar belum sinkron";
-      marketComment = "Arah H1, M30, M15, dan M5 belum cukup sinkron. Tunggu bias lebih jelas sebelum entry.";
+    } else if(!activeScalpTrade && !htfReady){
+      reason = "Data H1/M30 masih dikumpulkan";
+      marketComment = "Data timeframe besar masih dikumpulkan. Tunggu H1 dan M30 siap sebelum entry.";
+    } else if(!activeScalpTrade && trend === "bullish" && !htfBullAligned){
+      reason = "H1/M30 belum searah bullish";
+      marketComment = "Trend kecil bullish, tapi H1 dan M30 belum sama-sama bullish. Tunggu alignment naik.";
+    } else if(!activeScalpTrade && trend === "bearish" && !htfBearAligned){
+      reason = "H1/M30 belum searah bearish";
+      marketComment = "Trend kecil bearish, tapi H1 dan M30 belum sama-sama bearish. Tunggu alignment turun.";
     } else if(!activeScalpTrade && trend === "bullish" && !inDemandZone){
       reason = "Harga belum masuk demand zone";
       marketComment = "Trend bullish terdeteksi. Fokus entry buy di sekitar demand " + fix(demandTop) + " setelah buyer bereaksi.";
@@ -956,7 +966,7 @@ function analyze(close,high,low,open){
 
   document.getElementById("signal").className=cls;
   document.getElementById("signal").innerText=signal;
-  setMetric("entry","Entry", entry === null ? (plannedEntry === null ? "Belum ada setup" : "Area " + fix(plannedEntry)) : fix(entry), entry === null && plannedEntry === null);
+  setMetric("entry", entry === null ? entryLabel : "Entry", entry === null ? (plannedEntry === null ? "Belum ada setup" : fix(plannedEntry)) : fix(entry), entry === null && plannedEntry === null);
   setMetric("tp","TP", tp === null ? "Belum ada setup" : fix(tp), tp === null);
   setMetric("sl","SL", sl === null ? "Belum ada setup" : fix(sl), sl === null);
   setMetric("lot","Lot", lot === "-" ? "-" : lot, lot === "-");
