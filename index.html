@@ -213,6 +213,8 @@
     /* ===== HISTORY ENTRY ===== */
     .history-box {
       margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
     }
 
     .history-header {
@@ -301,6 +303,15 @@
       </div>
       <div id="chart"></div>
       <p id="dataStatus">Loading data...</p>
+
+      <!-- ===== HISTORY ENTRY PANEL ===== -->
+      <div class="history-box">
+        <div class="history-header">
+          <h2 class="history-title">📋 History Entry</h2>
+          <button type="button" class="history-clear-btn" onclick="clearHistory()">Hapus Riwayat</button>
+        </div>
+        <div id="historyTable"></div>
+      </div>
     </div>
 
     <div class="box signal-panel">
@@ -332,14 +343,6 @@
     </div>
   </div>
 
-  <!-- ===== HISTORY ENTRY PANEL ===== -->
-  <div class="box history-box">
-    <div class="history-header">
-      <h2 class="history-title">📋 History Entry</h2>
-      <button type="button" class="history-clear-btn" onclick="clearHistory()">Hapus Riwayat</button>
-    </div>
-    <div id="historyTable"></div>
-  </div>
 </div>
 
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -511,21 +514,60 @@ function renderHistory(){
 // ===== HISTORICAL INIT =====
 // Fetches real historical M5 bars from Yahoo Finance so that any browser
 // immediately has enough candle history — no more "collecting 0/8" on first open.
+async function fetchHistoryBars(){
+  // Prefer server route when available (Vercel / Node runtime).
+  try{
+    let apiRes = await fetch("/api/tradingview-history", {cache: "no-store"});
+    if(apiRes.ok){
+      let apiData = await apiRes.json();
+      if(apiData && Array.isArray(apiData.bars) && apiData.bars.length){
+        return apiData.bars;
+      }
+    }
+  }catch(_e){
+    // Continue to direct-browser fallback.
+  }
+
+  // Fallback for static hosting (no /api route): direct Yahoo Finance fetch.
+  try{
+    let yahooUrl = "https://query1.finance.yahoo.com/v8/finance/chart/XAUUSD=X?interval=5m&range=2d&includePrePost=false";
+    let yahooRes = await fetch(yahooUrl, {cache: "no-store"});
+    if(!yahooRes.ok) return [];
+    let payload = await yahooRes.json();
+    let result = payload && payload.chart && payload.chart.result && payload.chart.result[0];
+    if(!result || !Array.isArray(result.timestamp) || !result.indicators || !result.indicators.quote || !result.indicators.quote[0]){
+      return [];
+    }
+
+    let q = result.indicators.quote[0];
+    let bars = [];
+    for(let i=0;i<result.timestamp.length;i++){
+      let o = Number(q.open[i]);
+      let h = Number(q.high[i]);
+      let l = Number(q.low[i]);
+      let c = Number(q.close[i]);
+      if(!Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c)) continue;
+      bars.push({t: Number(result.timestamp[i]) * 1000, o, h, l, c});
+    }
+    return bars;
+  }catch(_e){
+    return [];
+  }
+}
+
 async function initHistoricalData(){
   // Already have enough M5 bars from localStorage — no fetch needed.
   let existing = buildTimeframeSeries(fallbackTicks, 300, 50);
   if(existing.close.length >= 8) return;
 
   try{
-    let res = await fetch("/api/tradingview-history");
-    if(!res.ok) return;
-    let data = await res.json();
-    if(!data.bars || !data.bars.length) return;
+    let bars = await fetchHistoryBars();
+    if(!bars.length) return;
 
     let tfMs = 300000; // 5 minutes in ms
     let newTicks = [];
 
-    for(let bar of data.bars){
+    for(let bar of bars){
       // Place 4 synthetic ticks inside the bar's 5-min bucket so that
       // buildTimeframeSeries() correctly reconstructs OHLC.
       let bucketStart = Math.floor(bar.t / tfMs) * tfMs;
@@ -548,7 +590,7 @@ async function initHistoricalData(){
     fallbackTicks = merged.slice(-MAX_PRICE_HISTORY);
     fallbackPrices = fallbackTicks.map(t => t.p);
     saveStoredPrices();
-    console.log("[HistoryInit] Loaded", data.bars.length, "M5 bars →", fallbackTicks.length, "ticks");
+    console.log("[HistoryInit] Loaded", bars.length, "M5 bars →", fallbackTicks.length, "ticks");
   }catch(e){
     // Non-fatal: app still works, just collects bars from scratch.
     console.log("[HistoryInit] Failed (non-fatal):", e.message);
