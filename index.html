@@ -1379,9 +1379,22 @@ function analyze(close,high,low,open){
       marketComment = "Setup bullish terkonfirmasi multi-filter. Tunggu retrace ke zona entry sebelum eksekusi.";
     }
     else {
-      marketComment = trend === "bullish"
-        ? "Trend bullish, setup belum valid (sweep/BOS/rejection belum sinkron). Sabar tunggu konfirmasi."
-        : "Trend bearish, setup belum valid (sweep/BOS/rejection belum sinkron). Sabar tunggu konfirmasi.";
+      let isBull = trend === "bullish";
+      let sweepOk = isBull ? sweepLow : sweepHigh;
+      let bosOk = isBull ? bosUp : bosDown;
+      let rejectionOk = isBull ? bullishReject : bearishReject;
+      let momentumOk = isBull ? bullishMomentum : bearishMomentum;
+      let trendOk = trendStrongEnough;
+
+      reason = "Checklist NORMAL | Sweep " + (sweepOk ? "OK" : "NO")
+        + " | BOS " + (bosOk ? "OK" : "NO")
+        + " | Rejection " + (rejectionOk ? "OK" : "NO")
+        + " | Momentum " + (momentumOk ? "OK" : "NO")
+        + " | TrendStrength " + (trendOk ? "OK" : "NO");
+
+      marketComment = "Trend internal NORMAL " + trend
+        + " (berdasarkan EMA/struktur mode NORMAL). "
+        + "Setup belum valid karena checklist belum lengkap. Tunggu sampai semua komponen sinkron.";
     }
   }
 
