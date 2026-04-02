@@ -385,7 +385,11 @@ function getModeConfig(){
       maxCandleSize: 130,  // Lebih longgar: tetap hindari spike ekstrem
       maxEmaGapFactor: 5,  // Lebih longgar: trend kuat tetap bisa dieksekusi
       minAvgCandle: 0.35,  // Lebih longgar: kurangi false "sideways" pada feed synthetic
-      pullbackTolerance: 8 // Area pullback EMA20 diperlebar
+      pullbackTolerance: 8, // Area pullback EMA20 diperlebar
+      sndLookback: 18,
+      sndZonePaddingFactor: 0.8,
+      sndTouchTolerance: 4,
+      minWickFactor: 1.2
     };
   }
 
@@ -654,8 +658,28 @@ function analyze(close,high,low,open){
     let nearEmaForBuy = last <= (emaFast + mode.pullbackTolerance);
     let nearEmaForSell = last >= (emaFast - mode.pullbackTolerance);
     let nearEmaPullback = trend === "bullish" ? nearEmaForBuy : nearEmaForSell;
-    let bullishConfirm = (close.at(-1) > open.at(-1)) || (close.at(-2) > open.at(-2));
-    let bearishConfirm = (close.at(-1) < open.at(-1)) || (close.at(-2) < open.at(-2));
+
+    // ===== SND ZONE =====
+    let sndLow = Math.min(...low.slice(-mode.sndLookback));
+    let sndHigh = Math.max(...high.slice(-mode.sndLookback));
+    let sndPad = Math.max(avgCandle * mode.sndZonePaddingFactor, 2);
+    let demandTop = sndLow + sndPad;
+    let supplyBottom = sndHigh - sndPad;
+    let inDemandZone = last <= (demandTop + mode.sndTouchTolerance);
+    let inSupplyZone = last >= (supplyBottom - mode.sndTouchTolerance);
+
+    // ===== ORDER FLOW / REJECTION =====
+    let bodyNow = Math.abs(close.at(-1) - open.at(-1));
+    let upperWickNow = high.at(-1) - Math.max(open.at(-1), close.at(-1));
+    let lowerWickNow = Math.min(open.at(-1), close.at(-1)) - low.at(-1);
+
+    let bullishOrderFlow = close.at(-1) > open.at(-1)
+      && lowerWickNow >= bodyNow * mode.minWickFactor
+      && lowerWickNow > upperWickNow;
+
+    let bearishOrderFlow = close.at(-1) < open.at(-1)
+      && upperWickNow >= bodyNow * mode.minWickFactor
+      && upperWickNow > lowerWickNow;
 
     // Gunakan baseline minimum supaya filter EMA-gap tidak terlalu keras saat candle kecil.
     let avgCandleRef = Math.max(avgCandle, 2);
@@ -719,31 +743,43 @@ function analyze(close,high,low,open){
     } else if(!activeScalpTrade && !sidewaysOk && !allowSidewaysByTrend){
       reason = "Market sideways, volatilitas terlalu kecil";
       marketComment = "Volatilitas kecil (" + fix(effectiveVolatility) + " < " + fix(sidewaysThreshold) + "). Market cenderung sideways. " + getSessionGuidanceText();
-    } else if(!activeScalpTrade && trend === "bullish" && nearEmaForBuy && bullishConfirm){
-      // BUY SCALP: harga pullback ke EMA20 + candle bullish konfirmasi
+    } else if(!activeScalpTrade && trend === "bullish" && !inDemandZone){
+      reason = "Harga belum masuk demand zone";
+      marketComment = "Trend bullish terdeteksi, tapi harga belum menyentuh zona demand. Tunggu harga turun ke area buyer dulu.";
+    } else if(!activeScalpTrade && trend === "bearish" && !inSupplyZone){
+      reason = "Harga belum masuk supply zone";
+      marketComment = "Trend bearish terdeteksi, tapi harga belum menyentuh zona supply. Tunggu harga naik ke area seller dulu.";
+    } else if(!activeScalpTrade && trend === "bullish" && inDemandZone && !bullishOrderFlow){
+      reason = "Belum ada reaksi order flow bullish di demand";
+      marketComment = "Harga sudah di demand zone, tapi belum ada candle rejection bullish yang valid. Tunggu reaksi buyer lebih jelas.";
+    } else if(!activeScalpTrade && trend === "bearish" && inSupplyZone && !bearishOrderFlow){
+      reason = "Belum ada reaksi order flow bearish di supply";
+      marketComment = "Harga sudah di supply zone, tapi belum ada candle rejection bearish yang valid. Tunggu reaksi seller lebih jelas.";
+    } else if(!activeScalpTrade && trend === "bullish" && inDemandZone && nearEmaForBuy && bullishOrderFlow){
+      // BUY SCALP: trend bullish + harga di demand + order flow bullish
       entry = last;
       sl    = entry - mode.risk;
       tp    = entry + mode.risk * mode.rr;
       signal = "BUY SCALP";
-      reason = "Pullback area EMA20 + konfirmasi bullish (searah trend)";
+      reason = "Trend bullish + demand zone + order flow bullish";
       status = "VALID";
-      marketComment = "Pullback sehat ke area EMA20 (dengan toleransi) di trend bullish. Candle konfirmasi naik. Entry searah trend, bukan melawan arus.";
+      marketComment = "Harga masuk demand zone lalu muncul reaksi order flow bullish. Entry buy searah trend dengan konfirmasi buyer.";
       activeScalpTrade = {side: "BUY", entry, sl, tp};
-    } else if(!activeScalpTrade && trend === "bearish" && nearEmaForSell && bearishConfirm){
-      // SELL SCALP: harga bounce ke EMA20 + candle bearish konfirmasi
+    } else if(!activeScalpTrade && trend === "bearish" && inSupplyZone && nearEmaForSell && bearishOrderFlow){
+      // SELL SCALP: trend bearish + harga di supply + order flow bearish
       entry = last;
       sl    = entry + mode.risk;
       tp    = entry - mode.risk * mode.rr;
       signal = "SELL SCALP";
-      reason = "Bounce area EMA20 + konfirmasi bearish (searah trend)";
+      reason = "Trend bearish + supply zone + order flow bearish";
       status = "VALID";
-      marketComment = "Harga bounce ke area EMA20 (dengan toleransi) di trend bearish. Candle konfirmasi turun. Entry searah trend, tidak melawan momentum.";
+      marketComment = "Harga masuk supply zone lalu muncul reaksi order flow bearish. Entry sell searah trend dengan konfirmasi seller.";
       activeScalpTrade = {side: "SELL", entry, sl, tp};
     } else if(!activeScalpTrade) {
-      reason = "Belum ada pullback valid ke area EMA20";
+      reason = "Menunggu sinkron trend + SND + order flow";
       marketComment = trend === "bullish"
-        ? "Trend bullish aktif. Tunggu harga pullback ke area EMA20 (+/- toleransi), lalu konfirmasi candle hijau untuk BUY SCALP."
-        : "Trend bearish aktif. Tunggu harga bounce ke area EMA20 (+/- toleransi), lalu konfirmasi candle merah untuk SELL SCALP.";
+        ? "Trend bullish aktif. Tunggu harga masuk demand zone lalu rejection bullish untuk BUY SCALP."
+        : "Trend bearish aktif. Tunggu harga masuk supply zone lalu rejection bearish untuk SELL SCALP.";
     }
   }
 
