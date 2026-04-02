@@ -371,6 +371,53 @@ function saveStoredPrices(){
   }
 }
 
+// ===== HISTORICAL INIT =====
+// Fetches real historical M5 bars from Yahoo Finance so that any browser
+// immediately has enough candle history — no more "collecting 0/8" on first open.
+async function initHistoricalData(){
+  // Already have enough M5 bars from localStorage — no fetch needed.
+  let existing = buildTimeframeSeries(fallbackTicks, 300, 50);
+  if(existing.close.length >= 8) return;
+
+  try{
+    let res = await fetch("/api/tradingview-history");
+    if(!res.ok) return;
+    let data = await res.json();
+    if(!data.bars || !data.bars.length) return;
+
+    let tfMs = 300000; // 5 minutes in ms
+    let newTicks = [];
+
+    for(let bar of data.bars){
+      // Place 4 synthetic ticks inside the bar's 5-min bucket so that
+      // buildTimeframeSeries() correctly reconstructs OHLC.
+      let bucketStart = Math.floor(bar.t / tfMs) * tfMs;
+      newTicks.push({t: bucketStart,          p: bar.o}); // open
+      newTicks.push({t: bucketStart + 60000,  p: bar.h}); // high
+      newTicks.push({t: bucketStart + 120000, p: bar.l}); // low
+      newTicks.push({t: bucketStart + 299000, p: bar.c}); // close
+    }
+
+    // Determine the boundary between historical and localStorage ticks.
+    let latestHistorical = newTicks.length ? newTicks[newTicks.length - 1].t : 0;
+
+    // Merge: prepend historical, keep localStorage ticks that come after.
+    let merged = [
+      ...newTicks,
+      ...fallbackTicks.filter(t => t.t > latestHistorical)
+    ];
+    merged.sort((a, b) => a.t - b.t);
+
+    fallbackTicks = merged.slice(-MAX_PRICE_HISTORY);
+    fallbackPrices = fallbackTicks.map(t => t.p);
+    saveStoredPrices();
+    console.log("[HistoryInit] Loaded", data.bars.length, "M5 bars →", fallbackTicks.length, "ticks");
+  }catch(e){
+    // Non-fatal: app still works, just collects bars from scratch.
+    console.log("[HistoryInit] Failed (non-fatal):", e.message);
+  }
+}
+
 // ===== FALLBACK =====
 function buildSyntheticSeries(prices){
   let close = prices.slice(-60);
@@ -1055,10 +1102,15 @@ function analyze(close,high,low,open){
 }
 
 // ===== LOOP =====
-setInterval(load,3000);
 setSourceLabel("Menunggu feed...");
 renderModeButtons();
-load();
+// Pre-populate historical M5 bars so M5 collection is instant on any browser,
+// then start the live polling loop.
+(async () => {
+  await initHistoricalData();
+  load();
+  setInterval(load, 3000);
+})();
 
 </script>
 
