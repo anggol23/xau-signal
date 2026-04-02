@@ -671,7 +671,7 @@ function getNewsFilterStatus(clock){
 // ===== FETCH =====
 async function load(){
   try{
-    let res = await fetch("https://api.gold-api.com/price/XAU");
+    let res = await fetch("/api/tradingview-quote");
     let data = await res.json();
     if(!data.price) throw new Error("Harga XAU tidak tersedia");
 
@@ -690,9 +690,9 @@ async function load(){
     saveStoredPrices();
 
     document.getElementById("dataStatus").innerText =
-      "Realtime aktif (Gold API) | Update terakhir: " + new Date().toLocaleTimeString("id-ID");
-    setSourceLabel("Gold API (Synthetic Candle)");
-    document.getElementById("chartStatus").innerText = "1 Minute Feed | Gold API";
+      "Realtime aktif (TradingView Quote) | Update terakhir: " + new Date().toLocaleTimeString("id-ID");
+    setSourceLabel("TradingView Quote (Synthetic Candle)");
+    document.getElementById("chartStatus").innerText = "1 Minute Feed | TradingView Quote";
 
     if(fallbackPrices.length < 6){
       document.getElementById("marketComment").innerText =
@@ -709,7 +709,7 @@ async function load(){
     setSourceLabel("Offline / Error");
     document.getElementById("chartStatus").innerText = "1 Minute Feed | Error";
     document.getElementById("marketComment").innerText =
-      formatModeComment("Feed Gold API gagal. Cek internet lalu refresh halaman.");
+      formatModeComment("Feed TradingView Quote gagal. Cek internet lalu refresh halaman.");
   }
 }
 
