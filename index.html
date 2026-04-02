@@ -1241,7 +1241,6 @@ function analyze(close,high,low,open){
       let isBuy = activeScalpTrade.side === "BUY";
       let hitTp = isBuy ? last >= activeScalpTrade.tp : last <= activeScalpTrade.tp;
       let hitSl = isBuy ? last <= activeScalpTrade.sl : last >= activeScalpTrade.sl;
-      let trendReversal = isBuy ? m5Trend === "bearish" : m5Trend === "bullish";
 
       if(hitTp){
         signal = isBuy ? "BUY SCALP TP HIT" : "SELL SCALP TP HIT";
@@ -1263,25 +1262,15 @@ function analyze(close,high,low,open){
         marketComment = "SL tersentuh. Tunggu setup ulang yang lebih rapi.";
         pushHistory(activeScalpTrade, "SL HIT");
         activeScalpTrade = null;
-      } else if(trendReversal){
-        signal = isBuy ? "BUY SCALP EXIT" : "SELL SCALP EXIT";
-        entry = activeScalpTrade.entry;
-        sl = activeScalpTrade.sl;
-        tp = activeScalpTrade.tp;
-        reason = "Trend berbalik, exit posisi";
-        status = "DONE";
-        marketComment = "Trend berbalik. Posisi ditutup untuk proteksi profit/risk.";
-        pushHistory(activeScalpTrade, "EXIT");
-        activeScalpTrade = null;
       } else {
         signal = isBuy ? "BUY SCALP" : "SELL SCALP";
         entry = activeScalpTrade.entry;
         sl = activeScalpTrade.sl;
         tp = activeScalpTrade.tp;
-        reason = "Posisi aktif, menunggu TP/SL atau pergantian trend";
+        reason = "Posisi aktif, menunggu TP/SL";
         status = "RUNNING";
-        marketComment = "Posisi masih aktif. Pantau manajemen hingga TP/SL atau trend berubah.";
-        scalpDebug = "ACTIVE " + activeScalpTrade.side + " | Menunggu TP/SL/Exit";
+        marketComment = "Posisi masih aktif. Sinyal dikunci sampai harga menyentuh TP atau SL.";
+        scalpDebug = "ACTIVE " + activeScalpTrade.side + " | Locked sampai TP/SL";
       }
     }
 
