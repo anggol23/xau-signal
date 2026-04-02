@@ -556,9 +556,12 @@ async function fetchHistoryBars(){
 }
 
 async function initHistoricalData(){
-  // Already have enough M5 bars from localStorage — no fetch needed.
-  let existing = buildTimeframeSeries(fallbackTicks, 300, 50);
-  if(existing.close.length >= 8) return;
+  // Skip fetch only if all required frames are already ready from localStorage.
+  // This prevents H1/M30 from staying in "Collecting" when only M5 is sufficient.
+  let m5Existing = buildTimeframeSeries(fallbackTicks, 300, 50);
+  let m30Existing = buildTimeframeSeries(fallbackTicks, 1800, 20);
+  let h1Existing = buildTimeframeSeries(fallbackTicks, 3600, 20);
+  if(m5Existing.close.length >= 8 && m30Existing.close.length >= 3 && h1Existing.close.length >= 3) return;
 
   try{
     let bars = await fetchHistoryBars();
