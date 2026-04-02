@@ -671,9 +671,23 @@ function getNewsFilterStatus(clock){
 // ===== FETCH =====
 async function load(){
   try{
-    let res = await fetch("/api/tradingview-quote");
-    let data = await res.json();
-    if(!data.price) throw new Error("Harga XAU tidak tersedia");
+    let data = null;
+    let activeSourceLabel = "TradingView Quote (Synthetic Candle)";
+    let activeStatusLabel = "1 Minute Feed | TradingView Quote";
+
+    try{
+      let res = await fetch("/api/tradingview-quote");
+      data = await res.json();
+      if(!data.price) throw new Error(data.detail || "TradingView quote tidak tersedia");
+    }catch(tvError){
+      console.log("TradingView quote failed, fallback to Gold API:", tvError.message || tvError);
+      let fallbackRes = await fetch("https://api.gold-api.com/price/XAU");
+      let fallbackData = await fallbackRes.json();
+      if(!fallbackData.price) throw new Error("Harga XAU tidak tersedia dari TradingView maupun Gold API");
+      data = {price: fallbackData.price};
+      activeSourceLabel = "Gold API Fallback (Synthetic Candle)";
+      activeStatusLabel = "1 Minute Feed | Fallback Gold API";
+    }
 
     if(fallbackPrices.length === 0){
       // Seed data awal supaya engine tidak lama berada di status WAIT.
@@ -690,9 +704,9 @@ async function load(){
     saveStoredPrices();
 
     document.getElementById("dataStatus").innerText =
-      "Realtime aktif (TradingView Quote) | Update terakhir: " + new Date().toLocaleTimeString("id-ID");
-    setSourceLabel("TradingView Quote (Synthetic Candle)");
-    document.getElementById("chartStatus").innerText = "1 Minute Feed | TradingView Quote";
+      "Realtime aktif (" + activeSourceLabel.replace(" (Synthetic Candle)", "") + ") | Update terakhir: " + new Date().toLocaleTimeString("id-ID");
+    setSourceLabel(activeSourceLabel);
+    document.getElementById("chartStatus").innerText = activeStatusLabel;
 
     if(fallbackPrices.length < 6){
       document.getElementById("marketComment").innerText =
