@@ -833,16 +833,20 @@ function getModeConfig(){
         name: "SCALPING (AGGRESSIVE)",
         fastEma: 18,
         slowEma: 50,
-        risk: 25,
-        rr: 1.8,
+        risk: 28,
+        rr: 2,
         maxCandleSize: 110,
-        maxEmaGapFactor: 4.8,
+        maxEmaGapFactor: 5.5,
         minAvgCandle: 0.35,
-        pullbackTolerance: 6,
-        sndLookback: 22,
+        pullbackTolerance: 8,
+        sndLookback: 20,
         sndZonePaddingFactor: 0.75,
-        sndTouchTolerance: 3,
-        minWickFactor: 1.4
+        sndTouchTolerance: 5,
+        minWickFactor: 1.2,
+        requireHtfReady: false,
+        requireHtfAlignment: false,
+        requireEmaPullback: false,
+        confirmationMode: "OR" // SND atau OF cukup salah satu
       };
     }
 
@@ -850,7 +854,7 @@ function getModeConfig(){
       name: "SCALPING (SAFE)",
       fastEma: 21,
       slowEma: 55,
-      risk: 25,
+      risk: 24,
       rr: 1.4,
       maxCandleSize: 95,
       maxEmaGapFactor: 4,
@@ -859,7 +863,11 @@ function getModeConfig(){
       sndLookback: 26,
       sndZonePaddingFactor: 0.7,
       sndTouchTolerance: 3,
-      minWickFactor: 1.6
+      minWickFactor: 1.6,
+      requireHtfReady: true,
+      requireHtfAlignment: true,
+      requireEmaPullback: true,
+      confirmationMode: "AND" // SND dan OF wajib lengkap
     };
   }
 
@@ -1197,6 +1205,7 @@ function analyze(close,high,low,open){
     let htfReady = h1State.ready && m30State.ready;
     let htfBullAligned = h1State.bias === "bullish" && m30State.bias === "bullish";
     let htfBearAligned = h1State.bias === "bearish" && m30State.bias === "bearish";
+    let htfOpposite = (m5Trend === "bullish" && htfBearAligned) || (m5Trend === "bearish" && htfBullAligned);
     let sndTag = m5Trend === "bullish"
       ? (inDemandZone ? "Demand OK" : "Belum Demand")
       : (inSupplyZone ? "Supply OK" : "Belum Supply");
@@ -1209,7 +1218,8 @@ function analyze(close,high,low,open){
     let htfAlignTag = !htfReady
       ? "H1/M30 Collecting"
       : (htfBullAligned || htfBearAligned ? "H1/M30 Aligned" : "H1/M30 Belum Align");
-    scalpDebug = trendTag + " | " + htfTag + " | " + htfAlignTag + " | " + sndTag + " | " + ofTag;
+    let presetRuleTag = mode.confirmationMode === "AND" ? "Rule Strict(AND)" : "Rule Fast(OR)";
+    scalpDebug = trendTag + " | " + htfTag + " | " + htfAlignTag + " | " + sndTag + " | " + ofTag + " | " + presetRuleTag;
     plannedEntry = m5Trend === "bullish" ? demandTop : supplyBottom;
     entryLabel = "Area Fokus";
 
@@ -1218,6 +1228,13 @@ function analyze(close,high,low,open){
     let emaGapOk = m5TrendStrength <= avgCandleRef * mode.maxEmaGapFactor;
     // Jika harga sudah pullback dekat EMA20, izinkan entry walau EMA20-EMA50 masih renggang.
     let allowByPullback = nearEmaPullback;
+    let zoneOk = m5Trend === "bullish" ? inDemandZone : inSupplyZone;
+    let orderFlowOk = m5Trend === "bullish" ? bullishOrderFlow : bearishOrderFlow;
+    let confirmationOk = mode.confirmationMode === "AND"
+      ? (zoneOk && orderFlowOk)
+      : (zoneOk || orderFlowOk);
+    let pullbackOk = mode.requireEmaPullback ? nearEmaPullback : true;
+    let htfAlignedForTrend = m5Trend === "bullish" ? htfBullAligned : htfBearAligned;
 
     // Jika sudah ada posisi scalping aktif, pertahankan sinyal sampai TP/SL atau pergantian trend.
     if(activeScalpTrade){
@@ -1274,46 +1291,70 @@ function analyze(close,high,low,open){
     } else if(!activeScalpTrade && !emaGapOk && !allowByPullback){
       reason = "EMA gap terlalu jauh, market overextended";
       marketComment = "EMA20 dan EMA50 terlalu jauh terpisah. Market sudah overextended, tunggu pullback lebih dalam ke area EMA20 atau konsolidasi.";
-    } else if(!activeScalpTrade && !htfReady){
+    } else if(!activeScalpTrade && mode.requireHtfReady && !htfReady){
       reason = "Data H1/M30 masih dikumpulkan";
       marketComment = "Data timeframe besar masih dikumpulkan. Tunggu H1 dan M30 siap sebelum entry.";
-    } else if(!activeScalpTrade && m5Trend === "bullish" && !htfBullAligned){
+    } else if(!activeScalpTrade && mode.requireHtfAlignment && !htfAlignedForTrend){
+      reason = m5Trend === "bullish" ? "H1/M30 belum searah bullish" : "H1/M30 belum searah bearish";
+      marketComment = m5Trend === "bullish"
+        ? "Mode SAFE: trend kecil bullish, tapi H1 dan M30 belum sama-sama bullish. Tunggu alignment naik."
+        : "Mode SAFE: trend kecil bearish, tapi H1 dan M30 belum sama-sama bearish. Tunggu alignment turun.";
+    } else if(!activeScalpTrade && !mode.requireHtfAlignment && htfReady && htfOpposite){
+      reason = "HTF berlawanan kuat dengan arah M5";
+      marketComment = "Mode AGGRESSIVE tetap menahan entry jika H1 dan M30 jelas berlawanan dengan arah trend M5.";
+    } else if(!activeScalpTrade && mode.confirmationMode === "AND" && m5Trend === "bullish" && !inDemandZone){
       reason = "H1/M30 belum searah bullish";
-      marketComment = "Trend kecil bullish, tapi H1 dan M30 belum sama-sama bullish. Tunggu alignment naik.";
-    } else if(!activeScalpTrade && m5Trend === "bearish" && !htfBearAligned){
-      reason = "H1/M30 belum searah bearish";
-      marketComment = "Trend kecil bearish, tapi H1 dan M30 belum sama-sama bearish. Tunggu alignment turun.";
-    } else if(!activeScalpTrade && m5Trend === "bullish" && !inDemandZone){
-      reason = "Harga belum masuk demand zone";
-      marketComment = "Trend bullish terdeteksi. Fokus entry buy di sekitar demand " + fix(demandTop) + " setelah buyer bereaksi.";
-    } else if(!activeScalpTrade && m5Trend === "bearish" && !inSupplyZone){
+      marketComment = "Mode SAFE: tunggu demand zone valid sebelum entry buy.";
+    } else if(!activeScalpTrade && mode.confirmationMode === "AND" && m5Trend === "bearish" && !inSupplyZone){
       reason = "Harga belum masuk supply zone";
-      marketComment = "Trend bearish terdeteksi. Fokus entry sell di sekitar supply " + fix(supplyBottom) + " setelah seller bereaksi.";
-    } else if(!activeScalpTrade && m5Trend === "bullish" && inDemandZone && !bullishOrderFlow){
+      marketComment = "Mode SAFE: tunggu supply zone valid sebelum entry sell.";
+    } else if(!activeScalpTrade && mode.confirmationMode === "AND" && m5Trend === "bullish" && inDemandZone && !bullishOrderFlow){
       reason = "Belum ada reaksi order flow bullish di demand";
-      marketComment = "Harga sudah di demand zone, tapi belum ada candle rejection bullish yang valid. Tunggu reaksi buyer lebih jelas.";
-    } else if(!activeScalpTrade && m5Trend === "bearish" && inSupplyZone && !bearishOrderFlow){
+      marketComment = "Mode SAFE: harga sudah di demand, tunggu rejection bullish yang valid.";
+    } else if(!activeScalpTrade && mode.confirmationMode === "AND" && m5Trend === "bearish" && inSupplyZone && !bearishOrderFlow){
       reason = "Belum ada reaksi order flow bearish di supply";
-      marketComment = "Harga sudah di supply zone, tapi belum ada candle rejection bearish yang valid. Tunggu reaksi seller lebih jelas.";
-    } else if(!activeScalpTrade && m5Trend === "bullish" && inDemandZone && nearEmaForBuy && bullishOrderFlow){
+      marketComment = "Mode SAFE: harga sudah di supply, tunggu rejection bearish yang valid.";
+    } else if(!activeScalpTrade && mode.confirmationMode === "OR" && !confirmationOk){
+      reason = "Konfirmasi cepat belum valid (SND/OF)";
+      marketComment = m5Trend === "bullish"
+        ? "Mode AGGRESSIVE: butuh minimal salah satu konfirmasi (masuk demand atau OF bullish)."
+        : "Mode AGGRESSIVE: butuh minimal salah satu konfirmasi (masuk supply atau OF bearish).";
+    } else if(!activeScalpTrade && mode.requireEmaPullback && !pullbackOk){
+      reason = "Harga belum pullback ideal ke EMA";
+      marketComment = "Mode SAFE menunggu pullback lebih rapi ke area EMA sebelum entry.";
+    } else if(!activeScalpTrade && m5Trend === "bullish" && !nearEmaForBuy){
+      reason = "Harga belum pullback ke area EMA";
+      marketComment = "Trend bullish aktif, tapi harga belum cukup dekat EMA untuk entry buy yang efisien.";
+    } else if(!activeScalpTrade && m5Trend === "bearish" && !nearEmaForSell){
+      reason = "Harga belum pullback ke area EMA";
+      marketComment = "Trend bearish aktif, tapi harga belum cukup dekat EMA untuk entry sell yang efisien.";
+    } else if(!activeScalpTrade && m5Trend === "bullish" && confirmationOk && nearEmaForBuy && pullbackOk){
       // BUY SCALP: trend bullish + harga di demand + order flow bullish
       entry = last;
       sl    = entry - mode.risk;
       tp    = entry + mode.risk * mode.rr;
       signal = "BUY SCALP";
-      reason = "Trend bullish + demand zone + order flow bullish";
+      reason = mode.confirmationMode === "AND"
+        ? "SAFE: trend bullish + demand zone + order flow bullish"
+        : "AGGRESSIVE: trend bullish + konfirmasi cepat (SND/OF)";
       status = "VALID";
-      marketComment = "Harga masuk demand zone lalu muncul reaksi order flow bullish. Entry buy searah trend dengan konfirmasi buyer.";
+      marketComment = mode.confirmationMode === "AND"
+        ? "Mode SAFE: konfirmasi lengkap terpenuhi, entry buy terpilih."
+        : "Mode AGGRESSIVE: setup cepat terpenuhi, entry buy dengan target lebih jauh.";
       activeScalpTrade = {side: "BUY", entry, sl, tp};
-    } else if(!activeScalpTrade && m5Trend === "bearish" && inSupplyZone && nearEmaForSell && bearishOrderFlow){
+    } else if(!activeScalpTrade && m5Trend === "bearish" && confirmationOk && nearEmaForSell && pullbackOk){
       // SELL SCALP: trend bearish + harga di supply + order flow bearish
       entry = last;
       sl    = entry + mode.risk;
       tp    = entry - mode.risk * mode.rr;
       signal = "SELL SCALP";
-      reason = "Trend bearish + supply zone + order flow bearish";
+      reason = mode.confirmationMode === "AND"
+        ? "SAFE: trend bearish + supply zone + order flow bearish"
+        : "AGGRESSIVE: trend bearish + konfirmasi cepat (SND/OF)";
       status = "VALID";
-      marketComment = "Harga masuk supply zone lalu muncul reaksi order flow bearish. Entry sell searah trend dengan konfirmasi seller.";
+      marketComment = mode.confirmationMode === "AND"
+        ? "Mode SAFE: konfirmasi lengkap terpenuhi, entry sell terpilih."
+        : "Mode AGGRESSIVE: setup cepat terpenuhi, entry sell dengan target lebih jauh.";
       activeScalpTrade = {side: "SELL", entry, sl, tp};
     } else if(!activeScalpTrade) {
       reason = "Menunggu sinkron trend + SND + order flow";
