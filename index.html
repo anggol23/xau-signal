@@ -264,11 +264,12 @@
 let balance = 100;
 let riskPercent = 1;
 let fallbackPrices = [];
+let fallbackTicks = [];
 let strategyMode = "SCALPING"; // Pilih: "NORMAL" atau "SCALPING"
 let allowAllTradingSessions = true;
 let activeScalpTrade = null;
 const SAMPLE_INTERVAL_SECONDS = 3;
-const PRICE_STORAGE_KEY = "xauusd-sniper-prices-v2";
+const PRICE_STORAGE_KEY = "xauusd-sniper-ticks-v1";
 const MAX_PRICE_HISTORY = 20000;
 
 const tradingSessions = [
@@ -306,7 +307,8 @@ new TradingView.widget({
   withdateranges: true
 });
 
-fallbackPrices = loadStoredPrices();
+fallbackTicks = loadStoredPrices();
+fallbackPrices = fallbackTicks.map(t => t.p);
 
 // ===== FORMAT =====
 function fix(v){
@@ -336,7 +338,21 @@ function loadStoredPrices(){
     if(!raw) return [];
     let parsed = JSON.parse(raw);
     if(!Array.isArray(parsed)) return [];
-    return parsed.map(Number).filter(Number.isFinite).slice(-MAX_PRICE_HISTORY);
+
+    // Backward compatibility: older versions stored plain number arrays.
+    if(parsed.length > 0 && typeof parsed[0] === "number"){
+      let now = Date.now();
+      let prices = parsed.map(Number).filter(Number.isFinite).slice(-MAX_PRICE_HISTORY);
+      return prices.map((p, i) => ({
+        t: now - ((prices.length - 1 - i) * SAMPLE_INTERVAL_SECONDS * 1000),
+        p
+      }));
+    }
+
+    return parsed
+      .filter(x => x && Number.isFinite(Number(x.t)) && Number.isFinite(Number(x.p)))
+      .map(x => ({t: Number(x.t), p: Number(x.p)}))
+      .slice(-MAX_PRICE_HISTORY);
   }catch(_e){
     return [];
   }
@@ -344,7 +360,7 @@ function loadStoredPrices(){
 
 function saveStoredPrices(){
   try{
-    localStorage.setItem(PRICE_STORAGE_KEY, JSON.stringify(fallbackPrices.slice(-MAX_PRICE_HISTORY)));
+    localStorage.setItem(PRICE_STORAGE_KEY, JSON.stringify(fallbackTicks.slice(-MAX_PRICE_HISTORY)));
   }catch(_e){
     // Ignore storage failures.
   }
@@ -368,27 +384,42 @@ function buildSyntheticSeries(prices){
   return {close,high,low,open};
 }
 
-function buildTimeframeSeries(prices, timeframeSeconds, maxBars){
-  let bucketSize = Math.max(2, Math.round(timeframeSeconds / SAMPLE_INTERVAL_SECONDS));
+function buildTimeframeSeries(ticks, timeframeSeconds, maxBars){
+  let tfMs = timeframeSeconds * 1000;
+  let currentBucketId = Math.floor(Date.now() / tfMs);
+  let grouped = new Map();
   let open = [];
   let high = [];
   let low = [];
   let close = [];
 
-  // Build only completed candles so M5 analysis is based on closed bars.
-  let completeLength = prices.length - (prices.length % bucketSize);
-  if(completeLength < bucketSize){
+  for(let tick of ticks){
+    if(!tick || !Number.isFinite(tick.t) || !Number.isFinite(tick.p)) continue;
+    let bucketId = Math.floor(tick.t / tfMs);
+    if(bucketId >= currentBucketId) continue; // only closed candles
+
+    let g = grouped.get(bucketId);
+    if(!g){
+      grouped.set(bucketId, {open: tick.p, high: tick.p, low: tick.p, close: tick.p});
+      continue;
+    }
+
+    g.high = Math.max(g.high, tick.p);
+    g.low = Math.min(g.low, tick.p);
+    g.close = tick.p;
+  }
+
+  let ids = Array.from(grouped.keys()).sort((a,b) => a - b).slice(-maxBars);
+  if(ids.length === 0){
     return {open,high,low,close};
   }
 
-  let start = Math.max(0, completeLength - (bucketSize * maxBars));
-
-  for(let i=start; i + bucketSize <= completeLength; i += bucketSize){
-    let bucket = prices.slice(i, i + bucketSize);
-    open.push(bucket[0]);
-    close.push(bucket.at(-1));
-    high.push(Math.max(...bucket));
-    low.push(Math.min(...bucket));
+  for(let id of ids){
+    let g = grouped.get(id);
+    open.push(g.open);
+    high.push(g.high);
+    low.push(g.low);
+    close.push(g.close);
   }
 
   return {open,high,low,close};
@@ -641,11 +672,16 @@ async function load(){
 
     if(fallbackPrices.length === 0){
       // Seed data awal supaya engine tidak lama berada di status WAIT.
-      fallbackPrices = Array(20).fill(+data.price);
+      let now = Date.now();
+      fallbackTicks = Array.from({length: 20}, (_v, i) => ({
+        t: now - ((19 - i) * SAMPLE_INTERVAL_SECONDS * 1000),
+        p: +data.price
+      }));
     }
 
-    fallbackPrices.push(+data.price);
-    if(fallbackPrices.length > MAX_PRICE_HISTORY) fallbackPrices.shift();
+    fallbackTicks.push({t: Date.now(), p: +data.price});
+    if(fallbackTicks.length > MAX_PRICE_HISTORY) fallbackTicks.shift();
+    fallbackPrices = fallbackTicks.map(t => t.p);
     saveStoredPrices();
 
     document.getElementById("dataStatus").innerText =
@@ -679,7 +715,7 @@ function analyze(close,high,low,open){
   let sessionStatus = getSessionFilterStatus(clock);
   let newsStatus = getNewsFilterStatus(clock);
   let mode = getModeConfig();
-  let mtfState = getMultiTimeframeBias(fallbackPrices);
+  let mtfState = getMultiTimeframeBias(fallbackTicks);
 
   setMetric("modeInfo", "Mode", mode.name, false);
   setMetric("sessionFilter", "Jam Trading", sessionStatus.label, !sessionStatus.allowed);
@@ -756,7 +792,7 @@ function analyze(close,high,low,open){
   // ===== SCALPING ENTRY (Pullback ke EMA20) =====
   if(status !== "FILTER" && strategyMode === "SCALPING"){
 
-    let m5Series = buildTimeframeSeries(fallbackPrices, 300, 50);
+    let m5Series = buildTimeframeSeries(fallbackTicks, 300, 50);
     if(m5Series.close.length < 22){
       reason = "Menunggu candle M5 selesai";
       marketComment = "Analisa entry scalping sekarang memakai candle M5 close. Tunggu data M5 cukup dulu.";
