@@ -335,7 +335,12 @@ function calcLot(slPoints){
 function loadStoredPrices(){
   try{
     let raw = localStorage.getItem(PRICE_STORAGE_KEY);
-    if(!raw) return [];
+    if(!raw){
+      // Legacy migration from old numeric-only storage key.
+      let legacyRaw = localStorage.getItem("xauusd-sniper-prices-v2");
+      if(!legacyRaw) return [];
+      raw = legacyRaw;
+    }
     let parsed = JSON.parse(raw);
     if(!Array.isArray(parsed)) return [];
 
@@ -793,10 +798,11 @@ function analyze(close,high,low,open){
   if(status !== "FILTER" && strategyMode === "SCALPING"){
 
     let m5Series = buildTimeframeSeries(fallbackTicks, 300, 50);
-    if(m5Series.close.length < 22){
+    let minM5BarsForScalp = 8;
+    if(m5Series.close.length < minM5BarsForScalp){
       reason = "Menunggu candle M5 selesai";
-      marketComment = "Analisa entry scalping sekarang memakai candle M5 close. Tunggu data M5 cukup dulu.";
-      scalpDebug = "M5 data belum cukup";
+      marketComment = "Analisa entry scalping memakai candle M5 close. Tunggu data M5 cukup dulu.";
+      scalpDebug = "M5 collecting: " + m5Series.close.length + "/" + minM5BarsForScalp;
       setMetric("scalpDebug", "SND/OF", scalpDebug, false);
       setMetric("entry", "Area Fokus", "Belum ada setup", true);
       setMetric("tp","TP", "Belum ada setup", true);
