@@ -238,6 +238,7 @@
         <p id="modeInfo"></p>
         <p id="sessionFilter"></p>
         <p id="newsFilter"></p>
+        <p id="scalpDebug"></p>
         <p id="entry"></p>
         <p id="tp"></p>
         <p id="sl"></p>
@@ -633,6 +634,9 @@ function analyze(close,high,low,open){
   let signal="NO TRADE", entry=null, sl=null, tp=null;
   let reason="No setup", status="WAIT";
   let marketComment = "Struktur belum valid untuk entry. Tunggu konfirmasi candle berikutnya.";
+  let scalpDebug = strategyMode === "SCALPING"
+    ? "Menunggu validasi SND + order flow"
+    : "Non-scalping mode";
 
   if(!sessionStatus.allowed){
     reason = "Di luar jam trading aktif";
@@ -680,6 +684,15 @@ function analyze(close,high,low,open){
     let bearishOrderFlow = close.at(-1) < open.at(-1)
       && upperWickNow >= bodyNow * mode.minWickFactor
       && upperWickNow > lowerWickNow;
+
+    let trendTag = trend === "bullish" ? "Trend Bullish" : "Trend Bearish";
+    let sndTag = trend === "bullish"
+      ? (inDemandZone ? "Demand OK" : "Belum Demand")
+      : (inSupplyZone ? "Supply OK" : "Belum Supply");
+    let ofTag = trend === "bullish"
+      ? (bullishOrderFlow ? "OF Bullish OK" : "OF Bullish Belum")
+      : (bearishOrderFlow ? "OF Bearish OK" : "OF Bearish Belum");
+    scalpDebug = trendTag + " | " + sndTag + " | " + ofTag;
 
     // Gunakan baseline minimum supaya filter EMA-gap tidak terlalu keras saat candle kecil.
     let avgCandleRef = Math.max(avgCandle, 2);
@@ -731,6 +744,7 @@ function analyze(close,high,low,open){
         reason = "Posisi aktif, menunggu TP/SL atau pergantian trend";
         status = "RUNNING";
         marketComment = "Posisi masih aktif. Pantau manajemen hingga TP/SL atau trend berubah.";
+        scalpDebug = "ACTIVE " + activeScalpTrade.side + " | Menunggu TP/SL/Exit";
       }
     }
 
@@ -845,6 +859,7 @@ function analyze(close,high,low,open){
   setMetric("lot","Lot", lot === "-" ? "-" : lot, lot === "-");
   setMetric("status","Status", status, status !== "VALID");
   setMetric("reason","Alasan", reason, signal === "NO TRADE");
+  setMetric("scalpDebug", "SND/OF", scalpDebug, strategyMode !== "SCALPING");
   setMetric("manage","Manajemen", manage, manage === "WAIT");
   document.getElementById("marketComment").innerText=formatModeComment(marketComment);
 }
