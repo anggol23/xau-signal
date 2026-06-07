@@ -443,7 +443,7 @@ const DEV_MODE = true;
       if(url.endsWith('/api/tradingview-quote') || url.includes('/api/tradingview-quote')){
         const last = (window.fallbackPrices && window.fallbackPrices.length)
           ? window.fallbackPrices[window.fallbackPrices.length - 1]
-          : 2650;
+          : 3300;
         const body = JSON.stringify({ price: Number(last) });
         return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
@@ -1105,23 +1105,23 @@ function getNewsFilterStatus(clock){
 let apiTriedOnce = false;
 let useMockMode = false;
 
-function generateMockXAUUSDPrice(lastPrice = 2650){
+function generateMockXAUUSDPrice(lastPrice = 3300){
   // Generate realistic XAUUSD price movement
   let drift = (Math.random() - 0.5) * 0.8; // ±0.4 per tick
   let volatility = Math.random() * 1.2;
   let newPrice = lastPrice + drift + (Math.sin(Date.now() / 10000) * volatility);
-  
-  // Keep it in realistic range: 2600-2700
-  newPrice = Math.max(2600, Math.min(2700, newPrice));
+
+  // Keep it in realistic range: ~3250-3350 (current gold band)
+  newPrice = Math.max(3250, Math.min(3350, newPrice));
   return Math.round(newPrice * 100) / 100;
 }
 
 function initializeMockPrices(){
   if(fallbackPrices.length > 0) return; // Already initialized
-  
+
   let now = Date.now();
-  let basePrice = 2650 + (Math.random() - 0.5) * 50; // Random start 2625-2675
-  
+  let basePrice = 3300 + (Math.random() - 0.5) * 50; // Random start 3275-3325
+
   fallbackTicks = [];
   for(let i = 19; i >= 0; i--){
     let price = basePrice + (Math.sin(i / 5) * 3) + (Math.random() - 0.5) * 2;
@@ -1139,7 +1139,7 @@ async function load(){
   if(useMockMode){
     if(fallbackPrices.length === 0) initializeMockPrices();
     
-    let lastPrice = fallbackPrices[fallbackPrices.length - 1] || 2650;
+    let lastPrice = fallbackPrices[fallbackPrices.length - 1] || 3300;
     let mockPrice = generateMockXAUUSDPrice(lastPrice);
     
     fallbackTicks.push({t: Date.now(), p: mockPrice});
@@ -1205,7 +1205,7 @@ async function load(){
   // Generate mock data for remaining calls after first attempt
   if(fallbackPrices.length === 0) initializeMockPrices();
   
-  let lastPrice = fallbackPrices[fallbackPrices.length - 1] || 2650;
+  let lastPrice = fallbackPrices[fallbackPrices.length - 1] || 3300;
   let mockPrice = generateMockXAUUSDPrice(lastPrice);
   
   fallbackTicks.push({t: Date.now(), p: mockPrice});
@@ -1241,6 +1241,20 @@ function analyze(close,high,low,open){
   setMetric("sessionFilter", "Jam Trading", sessionStatus.label, !sessionStatus.allowed);
   setMetric("newsFilter", "News Filter", newsStatus.label, newsStatus.blocked);
   setMetric("mtfBias", "HTF Bias", mtfState.summary, false);
+
+  if(clock.weekday === 0 || clock.weekday === 6){
+    document.getElementById("signal").className="wait";
+    document.getElementById("signal").innerText="MARKET CLOSED";
+    setMetric("entry","Entry","-", true);
+    setMetric("tp","TP","-", true);
+    setMetric("sl","SL","-", true);
+    setMetric("lot","Lot","-", true);
+    setMetric("status","Status","CLOSED", true);
+    setMetric("reason","Alasan","Weekend — pasar XAUUSD tutup (buka Minggu 22:02 / Senin pagi WIB)", true);
+    setMetric("manage","Manajemen","-", true);
+    document.getElementById("marketComment").innerText=formatModeComment("Pasar tutup. Sinyal di-pause; analitik resume otomatis saat Senin buka.");
+    return;
+  }
 
   if(close.length < 6 || high.length < 6 || low.length < 6 || open.length < 6){
     document.getElementById("signal").className="wait";

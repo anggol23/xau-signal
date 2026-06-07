@@ -223,13 +223,13 @@ function SwingSignalEngine(bars) {
     let prevBody = Math.abs(prevClose - prevOpen);
     let prevRange = high[high.length - 2] - low[low.length - 2];
     
-    if (prevBody > atr * 0.4 && prevRange > 0 && prevBody / prevRange >= 0.5) {
+    if (prevBody > atr * 0.2) {
       let isBO = isBreakout(prevClose, high[high.length - 3], low[low.length - 3], 'bullish');
-      let isEng = isEngulfing(open[open.length - 3], close[close.length - 3], 
+      let isEng = isEngulfing(open[open.length - 3], close[close.length - 3],
                               prevOpen, prevClose, 'bullish');
-      let isPB = isPinBar(prevOpen, prevClose, high[high.length - 2], 
+      let isPB = isPinBar(prevOpen, prevClose, high[high.length - 2],
                           low[low.length - 2], 'bullish');
-      
+
       if (isBO || isEng || isPB) {
         signal = {
           type: 'BUY_SWING',
@@ -251,7 +251,7 @@ function SwingSignalEngine(bars) {
     let prevBody = Math.abs(prevClose - prevOpen);
     let prevRange = high[high.length - 2] - low[low.length - 2];
     
-    if (prevBody > atr * 0.4 && prevRange > 0 && prevBody / prevRange >= 0.5) {
+    if (prevBody > atr * 0.2) {
       let isBO = isBreakout(prevClose, high[high.length - 3], low[low.length - 3], 'bearish');
       let isEng = isEngulfing(open[open.length - 3], close[close.length - 3], 
                               prevOpen, prevClose, 'bearish');
@@ -289,8 +289,9 @@ function ScalpSignalEngine(bars) {
   let bb = BollingerBands(close, 20, 2.0);
   let rsiScalp = RSI(close, 7);
   let atr = ATR(high, low, close, 14);
-  let emaFast = EMA(close, 20);
-  let emaSlow = EMA(close, 50);
+  // Sync dengan MQ5: Scalp_EMA_Fast=21, Scalp_EMA_Slow=55
+  let emaFast = EMA(close, 21);
+  let emaSlow = EMA(close, 55);
   
   if (!bb || !rsiScalp || !atr || !emaFast || !emaSlow) return null;
   
