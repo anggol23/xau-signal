@@ -511,20 +511,40 @@ const datedHighImpactNews = [
 ];
 
 // ===== GLOBAL =====
-new TradingView.widget({
-  container_id: "chart",
-  symbol: "OANDA:XAUUSD",
-  interval: "1",
-  theme: "dark",
-  width: "100%",
-  height: 400,
-  locale: "id",
-  timezone: "Asia/Jakarta",
-  hide_top_toolbar: false,
-  hide_legend: false,
-  allow_symbol_change: false,
-  withdateranges: true
-});
+function initTradingViewWidget() {
+  if (typeof TradingView === "undefined") {
+    // tv.js gagal load (DNS block / offline) -- tampilkan fallback chart
+    const chartEl = document.getElementById("chart");
+    if (chartEl) {
+      chartEl.innerHTML =
+        '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;' +
+        'color:#94a3b8;font-size:14px;text-align:center;padding:24px;background:#0b1220;border-radius:14px;">' +
+        '<div style="font-size:18px;color:#cbd5e1;margin-bottom:8px;">Chart tidak tersedia</div>' +
+        '<div>TradingView widget gagal dimuat (s3.tradingview.com diblokir / offline).</div>' +
+        '<div style="margin-top:6px;">Sinyal &amp; analisis tetap aktif di panel kanan.</div></div>';
+    }
+    return;
+  }
+  try {
+    new TradingView.widget({
+      container_id: "chart",
+      symbol: "OANDA:XAUUSD",
+      interval: "1",
+      theme: "dark",
+      width: "100%",
+      height: 400,
+      locale: "id",
+      timezone: "Asia/Jakarta",
+      hide_top_toolbar: false,
+      hide_legend: false,
+      allow_symbol_change: false,
+      withdateranges: true
+    });
+  } catch (e) {
+    console.warn("TradingView widget init failed:", e);
+  }
+}
+initTradingViewWidget();
 
 fallbackTicks = loadStoredPrices();
 fallbackPrices = fallbackTicks.map(t => t.p);
