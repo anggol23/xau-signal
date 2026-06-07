@@ -1,0 +1,11 @@
+{
+  "name": "xauusd-sniper",
+  "version": "1.0.0",
+  "description": "XAUUSD SNIPER - MT5 Signal Engine Integration",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
