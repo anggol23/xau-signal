@@ -151,12 +151,12 @@ function isPinBar(open, close, high, low, direction) {
     // Hammer: long lower shadow, small body, small upper shadow
     let lowerShadow = Math.min(open, close) - low;
     let upperShadow = high - Math.max(open, close);
-    return lowerShadow >= range * 0.6 && body <= range * 0.3 && upperShadow <= range * 0.2;
+    return lowerShadow >= range * 0.6 && body <= range * 0.3 && upperShadow <= range * 0.35;
   } else if (direction === 'bearish') {
     // Shooting star: small body, long upper shadow, small lower shadow
     let lowerShadow = Math.min(open, close) - low;
     let upperShadow = high - Math.max(open, close);
-    return upperShadow >= range * 0.6 && body <= range * 0.3 && lowerShadow <= range * 0.2;
+    return upperShadow >= range * 0.6 && body <= range * 0.3 && lowerShadow <= range * 0.35;
   }
   
   return false;
@@ -212,13 +212,13 @@ function SwingSignalEngine(bars) {
   let prevOpen = open[open.length - 2];
   
   let trend = emaFast > emaSlow ? 'bullish' : 'bearish';
-  let trendStrong = adxData.adx >= 20;
+  let trendStrong = adxData.adx >= 15;
   
   let signal = null;
   
   // SWING BUY SIGNAL
-  if (trend === 'bullish' && adxData.plusDI > adxData.minusDI && 
-      rsi >= 35 && rsi <= 70 && lastClose > emaFast) {
+  if (trend === 'bullish' && trendStrong && adxData.plusDI > adxData.minusDI && 
+      rsi >= 35 && rsi < 80 && lastClose > emaFast) {
     
     let prevBody = Math.abs(prevClose - prevOpen);
     let prevRange = high[high.length - 2] - low[low.length - 2];
@@ -245,8 +245,8 @@ function SwingSignalEngine(bars) {
   }
   
   // SWING SELL SIGNAL
-  if (trend === 'bearish' && adxData.minusDI > adxData.plusDI && 
-      rsi >= 30 && rsi <= 65 && lastClose < emaFast) {
+  if (trend === 'bearish' && trendStrong && adxData.minusDI > adxData.plusDI && 
+      rsi > 20 && rsi <= 65 && lastClose < emaFast) {
     
     let prevBody = Math.abs(prevClose - prevOpen);
     let prevRange = high[high.length - 2] - low[low.length - 2];
@@ -308,14 +308,18 @@ function ScalpSignalEngine(bars) {
   // SCALP BUY (BB lower bounce + RSI oversold)
   if (lastClose > bb.lower && lastClose < bb.middle &&
       prevLow <= bb.lower && lastClose > lastOpen &&
-      rsiScalp < 25 && emaFast > emaSlow) {
+      rsiScalp < 30) {
+    
+    let scalp_sl_atr = 1.3;
+    let scalp_rr = 1.2;
+    let slDist = atr * scalp_sl_atr;
     
     signal = {
       type: 'BUY_SCALP',
       trend: 'bullish',
       entry: lastClose,
-      slPrice: lastClose - atr * 0.8,
-      tpPrice: lastClose + atr * 1.2,
+      slPrice: lastClose - slDist,
+      tpPrice: lastClose + slDist * scalp_rr,
       atr: atr,
       rsiScalp: rsiScalp,
       bbLower: bb.lower,
@@ -327,14 +331,18 @@ function ScalpSignalEngine(bars) {
   // SCALP SELL (BB upper bounce + RSI overbought)
   if (lastClose < bb.upper && lastClose > bb.middle &&
       prevHigh >= bb.upper && lastClose < lastOpen &&
-      rsiScalp > 75 && emaFast < emaSlow) {
+      rsiScalp > 70) {
+    
+    let scalp_sl_atr = 1.3;
+    let scalp_rr = 1.2;
+    let slDist = atr * scalp_sl_atr;
     
     signal = {
       type: 'SELL_SCALP',
       trend: 'bearish',
       entry: lastClose,
-      slPrice: lastClose + atr * 0.8,
-      tpPrice: lastClose - atr * 1.2,
+      slPrice: lastClose + slDist,
+      tpPrice: lastClose - slDist * scalp_rr,
       atr: atr,
       rsiScalp: rsiScalp,
       bbLower: bb.lower,

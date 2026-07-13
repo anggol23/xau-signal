@@ -1380,7 +1380,7 @@ function analyze(close,high,low,open){
       }
     } else {
       reason = "Menunggu setup swing: trend kuat + pola masuk (pinbar/breakout/engulf)";
-      marketComment = "Analisis swing membutuhkan: (1) EMA20 > EMA50 atau sebaliknya, (2) ADX > 20, (3) Pola breakout/engulfing/pinbar";
+      marketComment = "Analisis swing membutuhkan: (1) EMA50 > EMA200 atau sebaliknya, (2) ADX > 15, (3) Pola breakout/engulfing/pinbar";
     }
   }
 
@@ -1444,20 +1444,20 @@ function analyze(close,high,low,open){
       
       if(scalpSignal.type === "BUY_SCALP"){
         signal = "BUY SCALP";
-        reason = `RSI ${scalpSignal.rsiScalp.toFixed(0)}/25 | BB Bounce | EMA Bullish`;
+        reason = `RSI ${scalpSignal.rsiScalp.toFixed(0)}/30 | BB Bounce`;
         status = "VALID";
         marketComment = "Setup scalp bullish terpilih. Harga di BB lower dengan RSI oversold.";
         activeScalpTrade = {side: "BUY", entry, sl, tp};
       } else if(scalpSignal.type === "SELL_SCALP"){
         signal = "SELL SCALP";
-        reason = `RSI ${scalpSignal.rsiScalp.toFixed(0)}/75 | BB Bounce | EMA Bearish`;
+        reason = `RSI ${scalpSignal.rsiScalp.toFixed(0)}/70 | BB Bounce`;
         status = "VALID";
         marketComment = "Setup scalp bearish terpilih. Harga di BB upper dengan RSI overbought.";
         activeScalpTrade = {side: "SELL", entry, sl, tp};
       }
     } else {
       reason = "Menunggu bounce di BB + RSI ekstrem";
-      marketComment = "Scalping butuh: (1) Harga bounce di BB bands, (2) RSI < 25 atau > 75, (3) Konfirmasi EMA";
+      marketComment = "Scalping butuh: (1) Harga bounce di BB bands, (2) RSI < 30 atau > 70";
       scalpDebug = `BB Ready | RSI Monitoring | Waiting entry setup`;
     }
   }

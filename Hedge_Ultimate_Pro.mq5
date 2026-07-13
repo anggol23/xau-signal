@@ -37,7 +37,7 @@ input int             EMA_Slow     = 200;
 input ENUM_TIMEFRAMES HTF          = PERIOD_H1;   // HTF untuk trend direction (legacy)
 input ENUM_TIMEFRAMES SwingEMA_TF = PERIOD_CURRENT;  // Swing EMA TF (sync dengan web: PERIOD_CURRENT = chart TF)
 input int             ADX_Period   = 14;
-input double          ADX_Min      = 20.0;
+input double          ADX_Min      = 15.0;
 
 //============================================================
 //  SWING ENTRY
@@ -70,13 +70,13 @@ input bool   EnableScalp       = true;      // Aktifkan scalp mode
 input int    BB_Period         = 20;        // Bollinger Band period
 input double BB_Dev            = 2.0;       // BB deviasi
 input int    Scalp_RSI_Period  = 7;         // RSI cepat untuk scalp
-input double Scalp_RSI_OB     = 75.0;      // RSI overbought scalp trigger
-input double Scalp_RSI_OS     = 25.0;      // RSI oversold scalp trigger
+input double Scalp_RSI_OB     = 70.0;      // RSI overbought scalp trigger
+input double Scalp_RSI_OS     = 30.0;      // RSI oversold scalp trigger
 input int    Scalp_EMA_Fast    = 21;        // EMA fast scalp (sync dengan web)
 input int    Scalp_EMA_Slow    = 55;        // EMA slow scalp (sync dengan web)
-input bool   Scalp_RequireEMACross = true;  // Butuh EMA fast > slow (sync dengan web)
+input bool   Scalp_RequireEMACross = false; // Butuh EMA fast > slow (sync dengan web)
 input double Scalp_RR         = 1.2;       // R:R ratio scalp (cepat ambil profit)
-input double Scalp_SL_ATR     = 0.8;       // SL scalp = ATR x multi (ketat)
+input double Scalp_SL_ATR     = 1.3;       // SL scalp = ATR x multi (ketat)
 input double Scalp_MaxSpread  = 15;        // Max spread untuk scalp (lebih ketat)
 input double Scalp_BE_ATR     = 0.3;       // Scalp BE trigger = ATR × multi (adaptive)
 input double Scalp_Trail_ATR  = 0.15;      // Scalp trail distance = ATR × multi (adaptive)
@@ -671,13 +671,13 @@ bool IsPinBar(int barIndex, int direction)
    {
       double lowerShadow = MathMin(open, close) - low;
       double upperShadow = high - MathMax(open, close);
-      return (lowerShadow >= range * 0.6 && body <= range * 0.3 && upperShadow <= range * 0.2);
+      return (lowerShadow >= range * 0.6 && body <= range * 0.3 && upperShadow <= range * 0.35);
    }
    else if(direction == -1) // Bearish Pin Bar (Shooting Star)
    {
       double lowerShadow = MathMin(open, close) - low;
       double upperShadow = high - MathMax(open, close);
-      return (upperShadow >= range * 0.6 && body <= range * 0.3 && lowerShadow <= range * 0.2);
+      return (upperShadow >= range * 0.6 && body <= range * 0.3 && lowerShadow <= range * 0.35);
    }
    return false;
 }
@@ -697,8 +697,8 @@ bool SwingBuySignal()
    if(!TrendStrong()) { if(DebugLog) Print("[SWING BUY] reject: ADX<", ADX_Min, " (adx[1]=", adx_val[1], ")"); return false; }
    if(plus_di[1] <= minus_di[1]) { if(DebugLog) Print("[SWING BUY] reject: +DI<= -DI (", plus_di[1], " vs ", minus_di[1], ")"); return false; }
 
-   // Zona RSI 35-70 di bar[1] (last closed)
-   if(rsi_val[1] >= RSI_OB || rsi_val[1] < 35.0) { if(DebugLog) Print("[SWING BUY] reject: RSI[1]=", rsi_val[1], " di luar zona 35-70"); return false; }
+   // Zona RSI 35-80 di bar[1] (last closed)
+   if(rsi_val[1] >= 80.0 || rsi_val[1] < 35.0) { if(DebugLog) Print("[SWING BUY] reject: RSI[1]=", rsi_val[1], " di luar zona 35-80"); return false; }
 
    double open1  = iOpen(_Symbol, _Period, 1);
    double close1 = iClose(_Symbol, _Period, 1);
@@ -736,8 +736,8 @@ bool SwingSellSignal()
    if(!TrendStrong()) { if(DebugLog) Print("[SWING SELL] reject: ADX<", ADX_Min); return false; }
    if(minus_di[1] <= plus_di[1]) { if(DebugLog) Print("[SWING SELL] reject: -DI<= +DI"); return false; }
 
-   // Zona RSI 30-65 di bar[1]
-   if(rsi_val[1] <= RSI_OS || rsi_val[1] > 65.0) { if(DebugLog) Print("[SWING SELL] reject: RSI[1]=", rsi_val[1], " di luar zona 30-65"); return false; }
+   // Zona RSI 20-65 di bar[1]
+   if(rsi_val[1] <= 20.0 || rsi_val[1] > 65.0) { if(DebugLog) Print("[SWING SELL] reject: RSI[1]=", rsi_val[1], " di luar zona 20-65"); return false; }
 
    double open1  = iOpen(_Symbol, _Period, 1);
    double close1 = iClose(_Symbol, _Period, 1);
@@ -789,8 +789,8 @@ bool ScalpBuySignal()
    // Kondisi 5: Harga di bawah BB middle (masih ada ruang ke atas)
    if(close1 > bb_mid[0]) return false;
 
-   // Kondisi 6 (sinkron web): EMA fast > slow pada chart TF (bar[1])
-   if(Scalp_RequireEMACross && ema_scalp_fast_val[1] <= ema_scalp_slow_val[1]) { if(DebugLog) Print("[SCALP BUY] reject: EMA cross down"); return false; }
+   // Kondisi 6 (sinkron web): EMA fast > slow pada chart TF (bar[1]) - dinonaktifkan untuk mean-reversion bounce
+   // if(Scalp_RequireEMACross && ema_scalp_fast_val[1] <= ema_scalp_slow_val[1]) { if(DebugLog) Print("[SCALP BUY] reject: EMA cross down"); return false; }
 
    // Kondisi 7: Tidak melawan HTF trend kuat (ADX > 30 + bearish H1/Swing = skip)
    if(adx_val[1] > 30.0 && GetTrend() == -1) return false;
@@ -823,8 +823,8 @@ bool ScalpSellSignal()
    // Kondisi 5: Harga di atas BB middle
    if(close1 < bb_mid[0]) return false;
 
-   // Kondisi 6 (sinkron web): EMA fast < slow pada chart TF (bar[1])
-   if(Scalp_RequireEMACross && ema_scalp_fast_val[1] >= ema_scalp_slow_val[1]) { if(DebugLog) Print("[SCALP SELL] reject: EMA cross up"); return false; }
+   // Kondisi 6 (sinkron web): EMA fast < slow pada chart TF (bar[1]) - dinonaktifkan untuk mean-reversion bounce
+   // if(Scalp_RequireEMACross && ema_scalp_fast_val[1] >= ema_scalp_slow_val[1]) { if(DebugLog) Print("[SCALP SELL] reject: EMA cross up"); return false; }
 
    // Kondisi 7: Tidak melawan HTF trend kuat
    if(adx_val[1] > 30.0 && GetTrend() == +1) return false;
